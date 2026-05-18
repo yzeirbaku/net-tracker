@@ -2,9 +2,16 @@
 
 The idempotent migration block at the bottom of db.SCHEMA_SQL renames legacy
 account `kind` values (`savings` → `wealth`, `sinking_fund` → `put_aside`)
-and retags `asset_class` (`Savings` → `Cash`, NULL for non-wealth). This test
-seeds a fresh DB with old-shape rows (after temporarily dropping the new
-constraints) and re-runs the schema to verify the migration converges.
+and retags `asset_class` (`Savings` → `Cash`, NULL for non-wealth).
+
+The realistic prod scenario is: a database that was originally created under
+the OLD schema (with inline CHECKs `kind IN ('spending','savings','sinking_fund')`
+and `asset_class IN ('Savings',...)` and `NOT NULL` on `asset_class`) is
+booted under the NEW backend. The migration must drop the old constraints,
+retag rows, then apply the new constraints — all in the right order.
+
+These tests simulate that path by dropping the table and recreating it with
+the literal old-shape DDL, then running SCHEMA_SQL.
 """
 
 from __future__ import annotations
@@ -15,38 +22,57 @@ from httpx import AsyncClient
 
 from app import db
 
+# The literal CREATE TABLE that shipped before the 2026-05-18 refactor.
+# Inline CHECKs constrain kind and asset_class to their old vocabularies,
+# and asset_class is NOT NULL. Reapplying this and running SCHEMA_SQL is
+# the only way to exercise the migration as prod would.
+_LEGACY_ACCOUNTS_DDL = """
+CREATE TABLE accounts (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    name TEXT NOT NULL,
+    kind TEXT NOT NULL CHECK (kind IN ('spending','savings','sinking_fund')),
+    asset_class TEXT NOT NULL CHECK (
+        asset_class IN ('Savings','Stocks','Crypto','Gold','Pension','Other')
+    ),
+    sort_order INTEGER NOT NULL DEFAULT 0,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    UNIQUE (user_id, name)
+);
+"""
 
-async def test_migration_renames_legacy_kinds_and_asset_classes(
+
+async def test_migration_renames_legacy_kinds_against_real_old_schema(
     client: AsyncClient,  # noqa: ARG001 — kept for fixture-ordering consistency
     authed_user: dict[str, str],
 ) -> None:
+    """Drop the new-shape accounts table, recreate it with the OLD inline
+    constraints and NOT NULL, seed legacy data, then re-run SCHEMA_SQL.
+    This exercises the actual prod migration ordering — the previous version
+    of this test only dropped the new constraints, which doesn't simulate
+    what happens when the old constraints are still in force.
+    """
     pool = db.pool()
     user_id = uuid.UUID(authed_user["user_id"])
 
     async with pool.acquire() as conn:
-        # Drop the constraints so we can insert old-shape rows for the test.
-        await conn.execute(
-            "ALTER TABLE accounts DROP CONSTRAINT IF EXISTS accounts_kind_check"
-        )
-        await conn.execute(
-            "ALTER TABLE accounts DROP CONSTRAINT IF EXISTS accounts_asset_class_check"
-        )
-        await conn.execute(
-            "ALTER TABLE accounts DROP CONSTRAINT IF EXISTS "
-            "accounts_asset_class_when_wealth"
-        )
+        # Tear down the new-shape table and rebuild as it would have been
+        # on a database created before the refactor.
+        await conn.execute("DROP TABLE IF EXISTS accounts CASCADE")
+        await conn.execute(_LEGACY_ACCOUNTS_DDL)
 
-        # Seed with legacy values from the old data model.
+        # Seed rows that respect the OLD constraints (so they actually insert).
         await conn.execute(
             "INSERT INTO accounts (user_id, name, kind, asset_class) VALUES "
             "($1, 'Legacy Savings',  'savings',      'Savings'), "
             "($1, 'Legacy Sinking',  'sinking_fund', 'Savings'), "
             "($1, 'Legacy Spending', 'spending',     'Savings'), "
-            "($1, 'Already Wealth',  'wealth',       'Stocks')",
+            "($1, 'Legacy Stocks',   'savings',      'Stocks')",
             user_id,
         )
 
-        # Re-run the full schema bootstrap (idempotent — includes migration).
+        # Run the full schema bootstrap — must drop legacy constraints,
+        # retag rows, and add new constraints in the correct order.
         await conn.execute(db.SCHEMA_SQL)
 
         rows = await conn.fetch(
@@ -55,11 +81,16 @@ async def test_migration_renames_legacy_kinds_and_asset_classes(
             user_id,
         )
 
+    # Expected migrations:
+    # - savings + 'Savings' asset class → wealth + 'Cash' (cash-in-bank scenario)
+    # - sinking_fund → put_aside, asset_class nulled (non-wealth has no class)
+    # - spending → unchanged kind, asset_class nulled
+    # - savings + 'Stocks' (already a non-cash asset) → wealth + 'Stocks' preserved
     assert [(r["name"], r["kind"], r["asset_class"]) for r in rows] == [
-        ("Already Wealth",  "wealth",    "Stocks"),
         ("Legacy Savings",  "wealth",    "Cash"),
         ("Legacy Sinking",  "put_aside", None),
         ("Legacy Spending", "spending",  None),
+        ("Legacy Stocks",   "wealth",    "Stocks"),
     ]
 
 
@@ -67,7 +98,7 @@ async def test_migration_is_idempotent_on_new_shape_data(
     client: AsyncClient,  # noqa: ARG001
     authed_user: dict[str, str],
 ) -> None:
-    """Running the migration twice in a row must not mutate already-correct data."""
+    """Running the migration twice in a row on already-correct data must be a no-op."""
     pool = db.pool()
     user_id = uuid.UUID(authed_user["user_id"])
 
@@ -86,7 +117,7 @@ async def test_migration_is_idempotent_on_new_shape_data(
             user_id,
         )
 
-        # Run the schema bootstrap again — idempotency check.
+        # Re-run the schema bootstrap — idempotency check.
         await conn.execute(db.SCHEMA_SQL)
 
         after = await conn.fetch(

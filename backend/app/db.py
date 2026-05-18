@@ -72,29 +72,38 @@ CREATE TABLE IF NOT EXISTS accounts (
 CREATE INDEX IF NOT EXISTS idx_accounts_user_id ON accounts(user_id);
 
 -- 2026-05-18 migration: rename kind values + retag asset class.
--- Run BEFORE re-applying the CHECK constraints so existing rows don't violate them.
+--
+-- ORDER MATTERS. On databases created under the OLD schema (with inline
+-- CHECK constraints kind IN ('spending','savings','sinking_fund') and
+-- asset_class IN ('Savings','Stocks',...) and NOT NULL on asset_class),
+-- those constraints are still in force until we explicitly drop them. So
+-- we must:
+--   1. Drop the legacy / current CHECK constraints AND the NOT NULL.
+--   2. THEN run the UPDATE statements (which would otherwise violate the
+--      old constraints by setting kind='wealth' or asset_class='Cash').
+--   3. THEN re-apply the new constraints.
+-- DROP IF EXISTS handles fresh databases too — there's nothing to drop and
+-- it's a cheap no-op.
+
+ALTER TABLE accounts DROP CONSTRAINT IF EXISTS accounts_kind_check;
+ALTER TABLE accounts DROP CONSTRAINT IF EXISTS accounts_asset_class_check;
+ALTER TABLE accounts DROP CONSTRAINT IF EXISTS accounts_asset_class_when_wealth;
+ALTER TABLE accounts ALTER COLUMN asset_class DROP NOT NULL;
+
 UPDATE accounts SET kind = 'wealth'    WHERE kind = 'savings';
 UPDATE accounts SET kind = 'put_aside' WHERE kind = 'sinking_fund';
 UPDATE accounts SET asset_class = 'Cash' WHERE asset_class = 'Savings';
 -- Non-wealth accounts have no asset class — null out any leftover values from before.
 UPDATE accounts SET asset_class = NULL WHERE kind <> 'wealth';
 
--- (Re)apply constraints idempotently. DROP IF EXISTS handles both the
--- auto-generated names from CREATE TABLE AND a previously-applied named
--- migration version.
-ALTER TABLE accounts DROP CONSTRAINT IF EXISTS accounts_kind_check;
 ALTER TABLE accounts ADD CONSTRAINT accounts_kind_check
     CHECK (kind IN ('spending', 'put_aside', 'wealth'));
 
-ALTER TABLE accounts DROP CONSTRAINT IF EXISTS accounts_asset_class_check;
 ALTER TABLE accounts ADD CONSTRAINT accounts_asset_class_check CHECK (
     asset_class IS NULL OR asset_class IN ('Cash', 'Stocks', 'Crypto', 'Gold', 'Pension', 'Other')
 );
 
-ALTER TABLE accounts ALTER COLUMN asset_class DROP NOT NULL;
-
 -- Wealth accounts must have an asset_class; non-wealth must not.
-ALTER TABLE accounts DROP CONSTRAINT IF EXISTS accounts_asset_class_when_wealth;
 ALTER TABLE accounts ADD CONSTRAINT accounts_asset_class_when_wealth CHECK (
     (kind = 'wealth' AND asset_class IS NOT NULL)
     OR (kind <> 'wealth' AND asset_class IS NULL)

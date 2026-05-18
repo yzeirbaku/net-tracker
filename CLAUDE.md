@@ -14,7 +14,7 @@ The PWA has five top-level views in a side drawer (same shell pattern as gold-ba
 
 - **Home** — four at-a-glance cards: this month's budget remaining (with progress bar + days left), top 3 spending categories last 30 days, net-worth sparkline + delta vs last month, and a "review queue" card that only renders when uncategorized transactions are waiting. Each card taps through to its full view.
 - **Budget** — edit the persistent **ideal monthly budget template** (categories + planned amounts). For any month, **stamp template → month** to materialize that month's plan. Once stamped, the month is editable independently; re-stamping overwrites with confirmation. Manual checkoff of expenses; running "remaining" per category + per month.
-- **Spending** — retrospective analysis of imported bank CSVs. Per-account filter, transaction table, review queue for uncategorized rows, monthly averages over 1m/3m/6m/12m, per-category breakdown, reports. Sinking-fund accounts also show an envelope panel above the transaction table.
+- **Spending** — retrospective analysis of imported bank CSVs. Per-account filter, transaction table, review queue for uncategorized rows, monthly averages over 1m/3m/6m/12m, per-category breakdown, reports. Put-aside accounts also show an envelope panel above the transaction table.
 - **Net Worth** — list of accounts grouped by asset class (Savings / Stocks / Crypto / Gold / Pension / Other). Each account has a history of `(date, balance)` entries; net-worth-over-time chart + period change (1M/3M/6M/1Y/all) + composition breakdown.
 - **Settings** — sign in/out, light/dark toggle, manage categories, manage merchant rules, manage envelopes.
 
@@ -45,7 +45,7 @@ A small **rules engine** drives both auto-categorization and "hide forever." No 
 - `pattern` (case-insensitive substring against `Tekst`)
 - `action` ∈ `{categorize, hide}`
 - `category_id` (NULL when `action='hide'`)
-- `envelope_id` (NULL unless the rule scopes to a sinking-fund account)
+- `envelope_id` (NULL unless the rule scopes to a put-aside account)
 - `account_id` (NULL = applies to all accounts; specific = scoped)
 - Longest pattern wins; ties broken by most-recently-created. Conflicts visible in the rules manager.
 

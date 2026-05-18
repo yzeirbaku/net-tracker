@@ -7,17 +7,17 @@ from enum import Enum
 from typing import Annotated
 from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 
 class AccountKind(str, Enum):
     SPENDING = "spending"
-    SAVINGS = "savings"
-    SINKING_FUND = "sinking_fund"
+    PUT_ASIDE = "put_aside"
+    WEALTH = "wealth"
 
 
 class AssetClass(str, Enum):
-    SAVINGS = "Savings"
+    CASH = "Cash"
     STOCKS = "Stocks"
     CRYPTO = "Crypto"
     GOLD = "Gold"
@@ -72,13 +72,21 @@ class CategoryOut(BaseModel):
 class AccountCreate(BaseModel):
     name: Annotated[str, Field(min_length=1, max_length=80)]
     kind: AccountKind
-    asset_class: AssetClass
+    asset_class: AssetClass | None = None
     sort_order: int = 0
 
     @field_validator("name")
     @classmethod
     def _validate_name(cls, v: str) -> str:
         return _strip_nonempty(v)
+
+    @model_validator(mode="after")
+    def _validate_asset_class_for_kind(self) -> AccountCreate:
+        if self.kind == AccountKind.WEALTH and self.asset_class is None:
+            raise ValueError("asset_class is required when kind is 'wealth'")
+        if self.kind != AccountKind.WEALTH and self.asset_class is not None:
+            raise ValueError("asset_class must be omitted when kind is not 'wealth'")
+        return self
 
 
 class AccountUpdate(BaseModel):
@@ -100,7 +108,7 @@ class AccountOut(BaseModel):
     id: UUID
     name: str
     kind: AccountKind
-    asset_class: AssetClass
+    asset_class: AssetClass | None
     sort_order: int
     created_at: datetime
 

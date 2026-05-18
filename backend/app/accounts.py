@@ -1,4 +1,10 @@
-"""Per-user account CRUD. Accounts have a `kind` that drives downstream behavior."""
+"""Per-user account CRUD. Accounts have a `kind` that drives downstream behavior.
+
+Kinds:
+- spending  — daily account, CSV-imported (Plan 4). No asset_class. Not in net worth.
+- put_aside — envelope account for irregular bills (Plan 5). No asset_class. Not in net worth.
+- wealth    — accumulating assets. Requires asset_class. Counts toward net worth.
+"""
 
 from __future__ import annotations
 
@@ -8,7 +14,7 @@ from fastapi import APIRouter, Depends, HTTPException, Response
 
 from app import db
 from app.auth_session import require_session
-from app.models import AccountCreate, AccountOut, AccountUpdate
+from app.models import AccountCreate, AccountKind, AccountOut, AccountUpdate
 
 router = APIRouter(prefix="/accounts", tags=["accounts"])
 
@@ -44,7 +50,7 @@ async def create_account(
                 session["user_id"],
                 payload.name,
                 payload.kind.value,
-                payload.asset_class.value,
+                payload.asset_class.value if payload.asset_class else None,
                 payload.sort_order,
             )
         except Exception as e:
@@ -72,7 +78,7 @@ async def update_account(
             raise HTTPException(status_code=404, detail="not_found")
 
         new_name = payload.name if payload.name is not None else row["name"]
-        new_asset = (
+        new_asset_value = (
             payload.asset_class.value
             if payload.asset_class is not None
             else row["asset_class"]
@@ -81,13 +87,23 @@ async def update_account(
             payload.sort_order if payload.sort_order is not None else row["sort_order"]
         )
 
+        # Cross-field rule: asset_class required iff kind is wealth.
+        if row["kind"] == AccountKind.WEALTH.value and new_asset_value is None:
+            raise HTTPException(
+                status_code=400, detail="asset_class_required_for_wealth"
+            )
+        if row["kind"] != AccountKind.WEALTH.value and new_asset_value is not None:
+            raise HTTPException(
+                status_code=400, detail="asset_class_only_for_wealth"
+            )
+
         try:
             updated = await conn.fetchrow(
                 "UPDATE accounts SET name=$1, asset_class=$2, sort_order=$3 "
                 "WHERE id = $4 AND user_id = $5 "
                 "RETURNING id, name, kind, asset_class, sort_order, created_at",
                 new_name,
-                new_asset,
+                new_asset_value,
                 new_sort,
                 account_id,
                 session["user_id"],

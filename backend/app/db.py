@@ -62,16 +62,43 @@ CREATE TABLE IF NOT EXISTS accounts (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
     name TEXT NOT NULL,
-    kind TEXT NOT NULL CHECK (kind IN ('spending','savings','sinking_fund')),
-    asset_class TEXT NOT NULL CHECK (
-        asset_class IN ('Savings','Stocks','Crypto','Gold','Pension','Other')
-    ),
+    kind TEXT NOT NULL,
+    asset_class TEXT,
     sort_order INTEGER NOT NULL DEFAULT 0,
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     UNIQUE (user_id, name)
 );
 
 CREATE INDEX IF NOT EXISTS idx_accounts_user_id ON accounts(user_id);
+
+-- 2026-05-18 migration: rename kind values + retag asset class.
+-- Run BEFORE re-applying the CHECK constraints so existing rows don't violate them.
+UPDATE accounts SET kind = 'wealth'    WHERE kind = 'savings';
+UPDATE accounts SET kind = 'put_aside' WHERE kind = 'sinking_fund';
+UPDATE accounts SET asset_class = 'Cash' WHERE asset_class = 'Savings';
+-- Non-wealth accounts have no asset class — null out any leftover values from before.
+UPDATE accounts SET asset_class = NULL WHERE kind <> 'wealth';
+
+-- (Re)apply constraints idempotently. DROP IF EXISTS handles both the
+-- auto-generated names from CREATE TABLE AND a previously-applied named
+-- migration version.
+ALTER TABLE accounts DROP CONSTRAINT IF EXISTS accounts_kind_check;
+ALTER TABLE accounts ADD CONSTRAINT accounts_kind_check
+    CHECK (kind IN ('spending', 'put_aside', 'wealth'));
+
+ALTER TABLE accounts DROP CONSTRAINT IF EXISTS accounts_asset_class_check;
+ALTER TABLE accounts ADD CONSTRAINT accounts_asset_class_check CHECK (
+    asset_class IS NULL OR asset_class IN ('Cash', 'Stocks', 'Crypto', 'Gold', 'Pension', 'Other')
+);
+
+ALTER TABLE accounts ALTER COLUMN asset_class DROP NOT NULL;
+
+-- Wealth accounts must have an asset_class; non-wealth must not.
+ALTER TABLE accounts DROP CONSTRAINT IF EXISTS accounts_asset_class_when_wealth;
+ALTER TABLE accounts ADD CONSTRAINT accounts_asset_class_when_wealth CHECK (
+    (kind = 'wealth' AND asset_class IS NOT NULL)
+    OR (kind <> 'wealth' AND asset_class IS NULL)
+);
 """
 
 

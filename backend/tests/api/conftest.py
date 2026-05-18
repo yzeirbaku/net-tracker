@@ -1,8 +1,7 @@
 """API-test fixtures: a clean Postgres schema per test plus an httpx AsyncClient.
 
-We use a single test database (TEST_DATABASE_URL env, defaulting to local Docker).
-Between tests, we TRUNCATE all user-data tables (cascade). Schema bootstrap runs
-once at session start via the autouse `_bootstrap_schema` fixture.
+The asyncpg pool is bound to the running event loop, so we init+close the pool
+per test (function scope). Schema bootstrap is idempotent so re-running is cheap.
 """
 
 from __future__ import annotations
@@ -38,24 +37,26 @@ async def _ensure_test_db() -> None:
         await conn.close()
 
 
-@pytest_asyncio.fixture(scope="session", autouse=True)
-async def _bootstrap_schema() -> AsyncIterator[None]:
+@pytest_asyncio.fixture(autouse=True)
+async def _db_per_test() -> AsyncIterator[None]:
+    """Create test DB if needed, init pool (which runs idempotent schema bootstrap),
+    truncate user tables, run the test, then close the pool.
+
+    Function-scoped to keep the pool bound to the test's event loop.
+    """
     await _ensure_test_db()
     os.environ["DATABASE_URL"] = _dsn()
     await db.init_pool()
-    yield
-    await db.close_pool()
-
-
-@pytest_asyncio.fixture(autouse=True)
-async def _clean_tables() -> AsyncIterator[None]:
     pool = db.pool()
     async with pool.acquire() as conn:
         await conn.execute(
             "TRUNCATE accounts, categories, sessions, magic_links, users "
             "RESTART IDENTITY CASCADE"
         )
-    yield
+    try:
+        yield
+    finally:
+        await db.close_pool()
 
 
 @pytest_asyncio.fixture

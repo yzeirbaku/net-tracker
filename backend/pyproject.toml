@@ -4,7 +4,13 @@ target-version = "py312"
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "B", "UP", "SIM", "PL"]
-ignore = ["PLR0913"]
+# PLR0913: too many arguments — FastAPI handlers legitimately take many.
+# B008: function calls in defaults — FastAPI's canonical Depends() pattern.
+ignore = ["PLR0913", "B008"]
+
+[tool.ruff.lint.per-file-ignores]
+# PLR2004: status codes and small constants are clearer as literals in API tests.
+"tests/**" = ["PLR2004"]
 
 [tool.mypy]
 python_version = "3.12"
@@ -14,4 +20,5 @@ ignore_missing_imports = true
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
+asyncio_default_fixture_loop_scope = "function"
 testpaths = ["tests"]

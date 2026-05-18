@@ -1,0 +1,26 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#0f1419">
+  <title>net-tracker dev</title>
+  <style>
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      background: #0f1419; color: #e6edf3;
+      display: grid; place-items: center; min-height: 100vh; margin: 0;
+    }
+  </style>
+</head>
+<body>
+  <p>Setting dev session…</p>
+  <script>
+    const token = new URLSearchParams(location.search).get("token");
+    if (token) {
+      localStorage.setItem("net-tracker.session-token", token);
+    }
+    location.replace("/");
+  </script>
+</body>
+</html>

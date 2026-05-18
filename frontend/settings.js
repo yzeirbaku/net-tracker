@@ -1,23 +1,43 @@
 import { api } from "./shared/api.js";
-import { clearToken } from "./shared/auth.js";
-import { escapeHtml, toast } from "./shared/ui.js";
+import { createDropdown } from "./shared/dropdown.js";
+import { confirmPrompt, escapeHtml, toast } from "./shared/ui.js";
 
-const ASSET_CLASSES = ["Savings", "Stocks", "Crypto", "Gold", "Pension", "Other"];
+const ASSET_CLASSES = ["Cash", "Stocks", "Crypto", "Gold", "Pension", "Other"];
 const ACCOUNT_KINDS = [
-  { value: "spending", label: "Spending (CSV-imported)" },
-  { value: "savings", label: "Savings (manual net worth only)" },
-  { value: "sinking_fund", label: "Sinking fund (CSV + envelopes)" },
+  { value: "spending", label: "Spending" },
+  { value: "put_aside", label: "Put-aside" },
+  { value: "wealth", label: "Wealth" },
 ];
+
+const COLOR_PALETTE = [
+  "#94a3b8", "#64748b", "#ef4444",
+  "#f97316", "#f59e0b", "#eab308",
+  "#84cc16", "#22c55e", "#10b981",
+  "#14b8a6", "#06b6d4", "#0ea5e9",
+  "#3b82f6", "#6366f1", "#8b5cf6",
+  "#a855f7", "#d946ef", "#ec4899",
+];
+const DEFAULT_COLOR = "#94a3b8";
+
+function kindLabel(value) {
+  return ACCOUNT_KINDS.find((k) => k.value === value)?.label ?? value;
+}
 
 const state = {
   email: null,
   categories: [],
   accounts: [],
+  pendingAcctKind: "spending",
+  pendingAcctAsset: "Cash",
+  pendingCatColor: DEFAULT_COLOR,
 };
 
 function setTheme(theme) {
   document.body.dataset.theme = theme;
   localStorage.setItem("net-tracker.theme", theme);
+  document.querySelectorAll("[data-theme-value]").forEach((btn) => {
+    btn.classList.toggle("active", btn.dataset.themeValue === theme);
+  });
 }
 
 function initTheme() {
@@ -43,140 +63,310 @@ export async function renderSettings() {
     return;
   }
   root.innerHTML = renderHtml();
+  initTheme();
+  mountDropdowns();
   bindHandlers();
+  syncAssetVisibility();
+  syncColorPickerVisibility();
 }
 
 function renderHtml() {
   return `
-    <h2>Account</h2>
-    <div class="card spread">
-      <div>Signed in as <strong>${escapeHtml(state.email)}</strong></div>
-      <button class="danger-btn" id="signout-btn">Sign out</button>
-    </div>
-
-    <h2>Theme</h2>
-    <div class="card row" style="gap: 12px">
-      <button class="site-btn" data-theme="light">Light</button>
-      <button class="site-btn" data-theme="dark">Dark</button>
-    </div>
-
-    <h2>Categories</h2>
     <div class="card">
-      <div class="row" style="margin-bottom: 10px">
-        <input id="cat-name" type="text" placeholder="New category name" />
-        <button class="site-btn-primary" id="cat-add">Add</button>
+      <h2>Account</h2>
+      <div class="spread" style="margin-top: 0.25rem">
+        <div>${escapeHtml(state.email)}</div>
       </div>
-      <ul style="list-style: none; padding: 0; margin: 0">
-        ${
-          state.categories.length === 0
-            ? '<li class="muted">No categories yet.</li>'
-            : state.categories
-                .map(
-                  (c) => `
-            <li class="spread" style="padding: 8px 0; border-top: 1px solid var(--border)">
-              <span>${escapeHtml(c.name)}${
-                c.exclude_from_spend ? ' <span class="muted">(excluded)</span>' : ""
-              }</span>
-              <button class="danger-btn" data-delete-category="${c.id}">Delete</button>
-            </li>`
-                )
-                .join("")
-        }
-      </ul>
     </div>
 
-    <h2>Accounts</h2>
     <div class="card">
-      <div class="row" style="margin-bottom: 10px; flex-wrap: wrap; gap: 8px">
-        <input id="acct-name" type="text" placeholder="Account name" style="flex: 1 1 180px" />
-        <select id="acct-kind">${ACCOUNT_KINDS.map(
-          (k) => `<option value="${k.value}">${k.label}</option>`
-        ).join("")}</select>
-        <select id="acct-asset">${ASSET_CLASSES.map(
-          (a) => `<option value="${a}">${a}</option>`
-        ).join("")}</select>
-        <button class="site-btn-primary" id="acct-add">Add</button>
+      <h2>Theme</h2>
+      <div class="seg-group seg-pill" role="radiogroup" aria-label="Theme">
+        <button type="button" data-theme-value="light" role="radio">Light</button>
+        <button type="button" data-theme-value="dark" role="radio">Dark</button>
       </div>
-      <ul style="list-style: none; padding: 0; margin: 0">
-        ${
-          state.accounts.length === 0
-            ? '<li class="muted">No accounts yet.</li>'
-            : state.accounts
-                .map(
-                  (a) => `
-            <li class="spread" style="padding: 8px 0; border-top: 1px solid var(--border)">
-              <span>${escapeHtml(a.name)} <span class="muted">— ${escapeHtml(
-                    a.kind
-                  )} · ${escapeHtml(a.asset_class)}</span></span>
-              <button class="danger-btn" data-delete-account="${a.id}">Delete</button>
-            </li>`
-                )
-                .join("")
-        }
-      </ul>
     </div>
+
+    <details class="settings-section" data-section="categories">
+      <summary>
+        <span>Categories<span class="count">${state.categories.length}</span></span>
+      </summary>
+      <div class="settings-body">
+        <div class="add-row-with-color">
+          <input id="cat-name" type="text" placeholder="New category name" />
+          <div class="color-picker" id="cat-color-picker" hidden>
+            <span class="color-prompt">Pick a color</span>
+            <button
+              type="button"
+              class="color-picker-trigger"
+              id="cat-color-trigger"
+              aria-haspopup="dialog"
+              aria-expanded="false"
+              aria-label="Choose color"
+              style="background: ${state.pendingCatColor}"
+            ></button>
+            <div class="color-picker-popup" id="cat-color-popup" hidden role="dialog" aria-label="Pick a color">
+              <div class="color-grid">
+                ${COLOR_PALETTE.map(
+                  (c) => `<button type="button" class="swatch${
+                    c === state.pendingCatColor ? " active" : ""
+                  }" data-color="${c}" style="background: ${c}" aria-label="Color ${c}"></button>`
+                ).join("")}
+              </div>
+            </div>
+          </div>
+          <button class="btn-primary" id="cat-add" type="button">Add</button>
+        </div>
+        <ul class="list-rows">
+          ${
+            state.categories.length === 0
+              ? '<li class="empty">No categories yet.</li>'
+              : state.categories
+                  .map(
+                    (c) => `
+            <li>
+              <span style="display:flex; align-items:center; min-width:0">
+                <span class="cat-dot" style="background: ${escapeHtml(c.color || "var(--muted)")}"></span>
+                <span>${escapeHtml(c.name)}${
+                  c.exclude_from_spend ? ' <span class="meta">(excluded)</span>' : ""
+                }</span>
+              </span>
+              <button class="row-action" data-delete-category="${c.id}" title="Delete">×</button>
+            </li>`
+                  )
+                  .join("")
+          }
+        </ul>
+      </div>
+    </details>
+
+    <details class="settings-section" data-section="accounts">
+      <summary>
+        <span>Accounts<span class="count">${state.accounts.length}</span></span>
+      </summary>
+      <div class="settings-body">
+        <div class="add-form">
+          <div class="field">
+            <label for="acct-name">Name</label>
+            <input id="acct-name" type="text" placeholder="e.g. Danske Salary" />
+          </div>
+          <div class="field">
+            <label>Kind</label>
+            <div class="seg-group" id="acct-kind-seg" role="radiogroup" aria-label="Account kind">
+              ${ACCOUNT_KINDS.map(
+                (k) => `<button type="button" data-kind="${k.value}"${
+                  k.value === state.pendingAcctKind ? ' class="active"' : ""
+                }>${escapeHtml(k.label)}</button>`
+              ).join("")}
+            </div>
+          </div>
+          <div class="field" id="acct-asset-field" hidden>
+            <label>Asset type</label>
+            <div id="acct-asset-mount"></div>
+          </div>
+          <div class="submit-row">
+            <button class="btn-primary" id="acct-add" type="button">Add</button>
+          </div>
+        </div>
+        <ul class="list-rows">
+          ${
+            state.accounts.length === 0
+              ? '<li class="empty">No accounts yet.</li>'
+              : state.accounts
+                  .map(
+                    (a) => `
+            <li>
+              <span>
+                ${escapeHtml(a.name)}
+                <span class="meta">— ${escapeHtml(kindLabel(a.kind))}${
+                  a.asset_class ? " · " + escapeHtml(a.asset_class) : ""
+                }</span>
+              </span>
+              <button class="row-action" data-delete-account="${a.id}" title="Delete">×</button>
+            </li>`
+                  )
+                  .join("")
+          }
+        </ul>
+      </div>
+    </details>
   `;
 }
 
-function bindHandlers() {
-  document.getElementById("signout-btn").addEventListener("click", async () => {
-    try {
-      await api.post("/auth/logout");
-    } catch {
-      /* ignore */
+function mountDropdowns() {
+  const mount = document.getElementById("acct-asset-mount");
+  if (!mount) return;
+  const dd = createDropdown({
+    options: ASSET_CLASSES.map((a) => ({ value: a, label: a })),
+    value: state.pendingAcctAsset,
+    ariaLabel: "Asset type",
+    onChange: (v) => { state.pendingAcctAsset = v; },
+  });
+  mount.replaceChildren(dd.element);
+}
+
+function syncAssetVisibility() {
+  const field = document.getElementById("acct-asset-field");
+  if (!field) return;
+  field.hidden = state.pendingAcctKind !== "wealth";
+}
+
+function syncColorPickerVisibility() {
+  const picker = document.getElementById("cat-color-picker");
+  const input = document.getElementById("cat-name");
+  if (!picker || !input) return;
+  const hasName = input.value.trim().length > 0;
+  picker.hidden = !hasName;
+  if (!hasName) closeColorPopup();
+}
+
+function openColorPopup() {
+  const popup = document.getElementById("cat-color-popup");
+  const trigger = document.getElementById("cat-color-trigger");
+  if (!popup || !trigger) return;
+  popup.hidden = false;
+  trigger.setAttribute("aria-expanded", "true");
+}
+
+function closeColorPopup() {
+  const popup = document.getElementById("cat-color-popup");
+  const trigger = document.getElementById("cat-color-trigger");
+  if (!popup || !trigger) return;
+  popup.hidden = true;
+  trigger.setAttribute("aria-expanded", "false");
+}
+
+function keepOpen(section) {
+  const el = document.querySelector(`[data-section="${section}"]`);
+  if (el) el.open = true;
+}
+
+function bindSegGroup(id, key) {
+  const seg = document.getElementById(id);
+  if (!seg) return;
+  seg.addEventListener("click", (e) => {
+    const btn = e.target.closest(`button[data-${key}]`);
+    if (!btn) return;
+    const value = btn.dataset[key];
+    if (key === "kind") {
+      state.pendingAcctKind = value;
+      syncAssetVisibility();
     }
-    clearToken();
-    location.reload();
+    seg.querySelectorAll("button").forEach((b) => {
+      b.classList.toggle("active", b === btn);
+    });
+  });
+}
+
+function bindHandlers() {
+  document.querySelectorAll("[data-theme-value]").forEach((btn) => {
+    btn.addEventListener("click", () => setTheme(btn.dataset.themeValue));
   });
 
-  document.querySelectorAll("[data-theme]").forEach((btn) => {
-    btn.addEventListener("click", () => setTheme(btn.dataset.theme));
-  });
+  // Category name input controls color picker visibility
+  const nameInput = document.getElementById("cat-name");
+  if (nameInput) {
+    nameInput.addEventListener("input", syncColorPickerVisibility);
+  }
 
+  // Color picker trigger toggles the popup
+  const trigger = document.getElementById("cat-color-trigger");
+  const popup = document.getElementById("cat-color-popup");
+  if (trigger && popup) {
+    trigger.addEventListener("click", (e) => {
+      e.stopPropagation();
+      if (popup.hidden) openColorPopup();
+      else closeColorPopup();
+    });
+    popup.addEventListener("click", (e) => {
+      e.stopPropagation();
+      const btn = e.target.closest(".swatch");
+      if (!btn) return;
+      state.pendingCatColor = btn.dataset.color;
+      trigger.style.background = state.pendingCatColor;
+      popup.querySelectorAll(".swatch").forEach((s) => {
+        s.classList.toggle("active", s === btn);
+      });
+      closeColorPopup();
+    });
+    document.addEventListener("click", (e) => {
+      if (popup.hidden) return;
+      if (popup.contains(e.target)) return;
+      if (trigger.contains(e.target)) return;
+      closeColorPopup();
+    });
+    document.addEventListener("keydown", (e) => {
+      if (e.key === "Escape" && !popup.hidden) closeColorPopup();
+    });
+  }
+
+  // Category add
   document.getElementById("cat-add").addEventListener("click", async () => {
-    const name = document.getElementById("cat-name").value.trim();
+    const input = document.getElementById("cat-name");
+    const name = input.value.trim();
     if (!name) return;
     try {
-      await api.post("/categories", { name });
+      await api.post("/categories", { name, color: state.pendingCatColor });
+      input.value = "";
       await renderSettings();
+      keepOpen("categories");
     } catch (e) {
       toast(`Could not add category: ${e.message}`, "error");
     }
   });
-
   document.querySelectorAll("[data-delete-category]").forEach((btn) => {
     btn.addEventListener("click", async () => {
       const id = btn.dataset.deleteCategory;
-      if (!confirm("Delete this category?")) return;
+      const ok = await confirmPrompt({
+        title: "Delete category?",
+        message: "This removes the category. Transactions categorized with it will become uncategorized.",
+        okLabel: "Delete",
+      });
+      if (!ok) return;
       try {
         await api.delete(`/categories/${id}`);
         await renderSettings();
+        keepOpen("categories");
       } catch (e) {
         toast(`Could not delete: ${e.message}`, "error");
       }
     });
   });
 
+  // Account kind seg
+  bindSegGroup("acct-kind-seg", "kind");
+
+  // Account add
   document.getElementById("acct-add").addEventListener("click", async () => {
     const name = document.getElementById("acct-name").value.trim();
-    const kind = document.getElementById("acct-kind").value;
-    const asset = document.getElementById("acct-asset").value;
-    if (!name) return;
+    const kind = state.pendingAcctKind;
+    const body = { name, kind };
+    if (kind === "wealth") body.asset_class = state.pendingAcctAsset;
+    if (!name) {
+      toast("Account name required", "error");
+      return;
+    }
     try {
-      await api.post("/accounts", { name, kind, asset_class: asset });
+      await api.post("/accounts", body);
       await renderSettings();
+      keepOpen("accounts");
     } catch (e) {
       toast(`Could not add account: ${e.message}`, "error");
     }
   });
-
   document.querySelectorAll("[data-delete-account]").forEach((btn) => {
     btn.addEventListener("click", async () => {
       const id = btn.dataset.deleteAccount;
-      if (!confirm("Delete this account? All linked data is removed.")) return;
+      const ok = await confirmPrompt({
+        title: "Delete account?",
+        message: "This removes the account and all linked data (balances, transactions, envelopes). Cannot be undone.",
+        okLabel: "Delete",
+      });
+      if (!ok) return;
       try {
         await api.delete(`/accounts/${id}`);
         await renderSettings();
+        keepOpen("accounts");
       } catch (e) {
         toast(`Could not delete: ${e.message}`, "error");
       }

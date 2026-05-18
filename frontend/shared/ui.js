@@ -33,7 +33,38 @@ export function escapeHtml(s) {
     .replaceAll("'", "&#039;");
 }
 
-export function confirmPrompt(message) {
-  // Replace with a custom dialog later if we need it; native confirm is fine for MVP.
-  return Promise.resolve(window.confirm(message));
+/**
+ * Custom themed confirmation dialog. Returns Promise<boolean>.
+ * Resolves true if the user clicks the affirmative button, false on cancel / Esc / backdrop.
+ *
+ * Options:
+ *  - title: header text (default "Confirm")
+ *  - message: body text
+ *  - okLabel: affirmative button text (default "Confirm")
+ *  - danger: true → makes the affirmative button red (for destructive actions)
+ */
+export function confirmPrompt({ title = "Confirm", message = "", okLabel = "Confirm", danger = false } = {}) {
+  return new Promise((resolve) => {
+    const dlg = document.getElementById("confirm-dialog");
+    if (!dlg) {
+      // Fallback if the dialog markup is missing — shouldn't happen.
+      resolve(window.confirm(message));
+      return;
+    }
+    const titleEl = document.getElementById("confirm-dialog-title");
+    const messageEl = document.getElementById("confirm-dialog-message");
+    const okBtn = document.getElementById("confirm-dialog-ok");
+    titleEl.textContent = title;
+    messageEl.textContent = message;
+    okBtn.textContent = okLabel;
+    okBtn.classList.toggle("dialog-danger-confirm", !!danger);
+
+    const onClose = () => {
+      dlg.removeEventListener("close", onClose);
+      okBtn.classList.remove("dialog-danger-confirm");
+      resolve(dlg.returnValue === "save");
+    };
+    dlg.addEventListener("close", onClose);
+    dlg.showModal();
+  });
 }

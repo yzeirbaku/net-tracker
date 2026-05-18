@@ -1,0 +1,79 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <meta name="theme-color" content="#0f1419" />
+  <title>net-tracker</title>
+  <link rel="manifest" href="/manifest.webmanifest" />
+  <link rel="apple-touch-icon" href="/icons/icon-192.png" />
+  <link rel="stylesheet" href="/styles.css" />
+  <script src="/config.js"></script>
+</head>
+<body data-theme="dark">
+  <div class="drawer-backdrop" id="drawer-backdrop"></div>
+  <div class="app-shell">
+    <aside class="drawer" id="drawer">
+      <div class="spread">
+        <strong>net-tracker</strong>
+        <button class="site-btn" id="drawer-close">×</button>
+      </div>
+      <nav id="nav">
+        <button data-view="home">Home</button>
+        <button data-view="budget">Budget</button>
+        <button data-view="spending">Spending</button>
+        <button data-view="networth">Net Worth</button>
+        <button data-view="settings" class="active">Settings</button>
+      </nav>
+    </aside>
+
+    <header class="topbar">
+      <button class="menu-btn" id="menu-open">☰</button>
+      <div class="brand">net-tracker</div>
+    </header>
+
+    <main>
+      <section class="view" id="view-home" hidden>
+        <h1>Home</h1>
+        <p class="muted">Coming in a later plan.</p>
+      </section>
+      <section class="view" id="view-budget" hidden>
+        <h1>Budget</h1>
+        <p class="muted">Coming in a later plan.</p>
+      </section>
+      <section class="view" id="view-spending" hidden>
+        <h1>Spending</h1>
+        <p class="muted">Coming in a later plan.</p>
+      </section>
+      <section class="view" id="view-networth" hidden>
+        <h1>Net Worth</h1>
+        <p class="muted">Coming in a later plan.</p>
+      </section>
+      <section class="view" id="view-settings">
+        <h1>Settings</h1>
+        <div id="settings-root"></div>
+      </section>
+    </main>
+  </div>
+
+  <dialog id="login-dialog">
+    <h2 style="margin-top:0">Sign in</h2>
+    <p class="muted" style="margin-top:0">We'll email a link. Click it to sign in.</p>
+    <label for="login-email">Email</label>
+    <input id="login-email" type="email" autocomplete="email" />
+    <menu>
+      <button id="login-cancel" value="cancel">Close</button>
+      <button id="login-send" value="save">Send link</button>
+    </menu>
+  </dialog>
+
+  <div class="toast" id="toast"></div>
+
+  <script type="module" src="/app.js?v=1"></script>
+  <script>
+    if ("serviceWorker" in navigator) {
+      navigator.serviceWorker.register("/service-worker.js").catch(() => {});
+    }
+  </script>
+</body>
+</html>

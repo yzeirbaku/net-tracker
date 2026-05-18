@@ -1,0 +1,15 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: net-tracker-pg
+    environment:
+      POSTGRES_USER: net
+      POSTGRES_PASSWORD: net
+      POSTGRES_DB: nettracker
+    ports:
+      - "5434:5432"
+    volumes:
+      - net_tracker_pg:/var/lib/postgresql/data
+
+volumes:
+  net_tracker_pg:

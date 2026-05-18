@@ -146,6 +146,30 @@ async def test_patch_spending_cannot_add_asset_class(
     assert r.status_code == 400
 
 
+async def test_accounts_listed_by_sort_order_then_name(
+    client: AsyncClient, authed_user: dict[str, str]
+) -> None:
+    headers = _h(authed_user["token"])
+    await client.post(
+        "/accounts",
+        json={"name": "Beta", "kind": "spending", "sort_order": 1},
+        headers=headers,
+    )
+    await client.post(
+        "/accounts",
+        json={"name": "Alpha", "kind": "spending", "sort_order": 2},
+        headers=headers,
+    )
+    await client.post(
+        "/accounts",
+        json={"name": "Gamma", "kind": "spending", "sort_order": 1},
+        headers=headers,
+    )
+    r = await client.get("/accounts", headers=headers)
+    # sort_order ASC, then name ASC: Beta (1), Gamma (1), Alpha (2)
+    assert [a["name"] for a in r.json()] == ["Beta", "Gamma", "Alpha"]
+
+
 async def test_delete_account(client: AsyncClient, authed_user: dict[str, str]) -> None:
     headers = _h(authed_user["token"])
     create = await client.post(

@@ -71,6 +71,55 @@ async def test_delete_category(client: AsyncClient, authed_user: dict[str, str])
     assert listing.json() == []
 
 
+async def test_category_color_persisted_on_create_and_listing(
+    client: AsyncClient, authed_user: dict[str, str]
+) -> None:
+    headers = _h(authed_user["token"])
+    r = await client.post(
+        "/categories",
+        json={"name": "Groceries", "color": "#22c55e"},
+        headers=headers,
+    )
+    assert r.status_code == 201
+    assert r.json()["color"] == "#22c55e"
+
+    listing = await client.get("/categories", headers=headers)
+    assert len(listing.json()) == 1
+    assert listing.json()[0]["color"] == "#22c55e"
+
+
+async def test_category_color_updated_via_patch(
+    client: AsyncClient, authed_user: dict[str, str]
+) -> None:
+    headers = _h(authed_user["token"])
+    create = await client.post(
+        "/categories",
+        json={"name": "X", "color": "#22c55e"},
+        headers=headers,
+    )
+    cat_id = create.json()["id"]
+    r = await client.patch(
+        f"/categories/{cat_id}",
+        json={"color": "#ef4444"},
+        headers=headers,
+    )
+    assert r.status_code == 200
+    assert r.json()["color"] == "#ef4444"
+
+
+async def test_categories_listed_by_sort_order_then_name(
+    client: AsyncClient, authed_user: dict[str, str]
+) -> None:
+    headers = _h(authed_user["token"])
+    # sort_order: B=1, A=2, C=1 → expected: B (1), C (1), A (2)
+    # — sort_order ASC, then name ASC for ties.
+    await client.post("/categories", json={"name": "B", "sort_order": 1}, headers=headers)
+    await client.post("/categories", json={"name": "A", "sort_order": 2}, headers=headers)
+    await client.post("/categories", json={"name": "C", "sort_order": 1}, headers=headers)
+    r = await client.get("/categories", headers=headers)
+    assert [c["name"] for c in r.json()] == ["B", "C", "A"]
+
+
 async def test_other_user_cannot_see_my_categories(
     client: AsyncClient, authed_user: dict[str, str]
 ) -> None:

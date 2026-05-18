@@ -1,0 +1,28 @@
+# Python
+__pycache__/
+*.pyc
+.venv/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# IDE
+.vscode/
+.idea/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Env
+.env
+*.env.local
+
+# Build artifacts
+dist/
+build/
+*.egg-info/
+
+# Local-only superpowers specs/plans — kept on disk, never committed
+docs/superpowers/
+.claude/

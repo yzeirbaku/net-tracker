@@ -1,7 +1,20 @@
+from collections.abc import AsyncIterator
+from contextlib import asynccontextmanager
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-app = FastAPI(title="net-tracker", version="0.1.0")
+from app.db import close_pool, init_pool
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI) -> AsyncIterator[None]:
+    await init_pool()
+    yield
+    await close_pool()
+
+
+app = FastAPI(title="net-tracker", version="0.1.0", lifespan=lifespan)
 
 app.add_middleware(
     CORSMiddleware,

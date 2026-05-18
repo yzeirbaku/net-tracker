@@ -4,7 +4,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from app import auth_session, categories
+from app import accounts, auth_session, categories
 from app.db import close_pool, init_pool
 
 
@@ -27,6 +27,7 @@ app.add_middleware(
 
 app.include_router(auth_session.router)
 app.include_router(categories.router)
+app.include_router(accounts.router)
 
 
 @app.get("/")

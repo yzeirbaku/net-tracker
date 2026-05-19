@@ -903,3 +903,68 @@ dialog menu button[value="save"].dialog-danger-confirm {
 .donut-legend-value {
   font-variant-numeric: tabular-nums;
 }
+
+.networth-class-section { margin-top: 1.25rem; }
+
+.networth-class-header {
+  margin: 0 1rem 0.5rem;
+  font-size: 0.85rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--text-muted);
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.networth-class-dot {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+}
+
+.networth-account-list { padding: 0.25rem 0; }
+
+.networth-account-row {
+  display: grid;
+  grid-template-columns: 1fr 60px auto auto;
+  gap: 0.75rem;
+  align-items: center;
+  padding: 0.7rem 1rem;
+  border-bottom: 1px solid rgba(255,255,255,0.05);
+  cursor: pointer;
+  transition: background 120ms ease;
+}
+
+.networth-account-row:last-child { border-bottom: 0; }
+.networth-account-row:hover { background: rgba(255,255,255,0.02); }
+
+.networth-account-name { font-weight: 500; }
+.networth-account-meta { font-size: 0.78rem; color: var(--text-muted); }
+
+.networth-account-spark { color: var(--accent); opacity: 0.7; }
+.account-sparkline { display: block; width: 60px; height: 20px; }
+
+.networth-account-value {
+  font-variant-numeric: tabular-nums;
+  font-weight: 500;
+}
+
+.networth-update-btn { padding: 0.3rem 0.7rem; font-size: 0.8rem; }
+
+@media (max-width: 480px) {
+  .networth-account-row {
+    grid-template-columns: 1fr auto;
+    grid-template-areas:
+      "main  value"
+      "spark spark"
+      "btn   btn";
+    row-gap: 0.3rem;
+  }
+  .networth-account-main { grid-area: main; }
+  .networth-account-value { grid-area: value; text-align: right; }
+  .networth-account-spark { grid-area: spark; justify-self: end; }
+  .networth-update-btn { grid-area: btn; justify-self: start; margin-top: 0.4rem; }
+}

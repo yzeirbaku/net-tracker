@@ -132,7 +132,90 @@ function renderHtml() {
       </div>`
         : ""
     }
+    ${
+      state.accounts.length > 0
+        ? Object.entries(accountsByClass())
+            .filter(([, list]) => list.length > 0)
+            .map(
+              ([cls, list]) => `
+        <section class="networth-class-section">
+          <h3 class="networth-class-header">
+            <span class="networth-class-dot" style="background:${ASSET_CLASS_COLORS[cls] || "#999"}"></span>
+            ${escapeHtml(cls)}
+          </h3>
+          <div class="card networth-account-list">
+            ${list
+              .map(
+                (a) => `
+              <div class="networth-account-row" data-account-id="${a.id}">
+                <div class="networth-account-main">
+                  <div class="networth-account-name">${escapeHtml(a.name)}</div>
+                  <div class="networth-account-meta">as of ${fmtDate(a.latest_entry_date)}</div>
+                </div>
+                <div class="networth-account-spark">${sparklineSvg(a.sparkline)}</div>
+                <div class="networth-account-value">${fmtDKK(a.latest_value_dkk)}</div>
+                <button class="btn-primary networth-update-btn" data-account-id="${a.id}" data-account-name="${escapeHtml(a.name)}" type="button">Update</button>
+              </div>`,
+              )
+              .join("")}
+          </div>
+        </section>`,
+            )
+            .join("")
+        : ""
+    }
   `;
+}
+
+function accountsByClass() {
+  const grouped = {};
+  for (const cls of ASSET_CLASS_ORDER) grouped[cls] = [];
+  for (const a of state.accounts) {
+    if (!grouped[a.asset_class]) grouped[a.asset_class] = [];
+    grouped[a.asset_class].push(a);
+  }
+  return grouped;
+}
+
+function sparklineSvg(points) {
+  if (!points || points.length < 2) {
+    return `<svg class="account-sparkline" viewBox="0 0 60 20" aria-hidden="true"></svg>`;
+  }
+  const values = points.map((p) => Number(p.value_dkk));
+  const min = Math.min(...values);
+  const max = Math.max(...values);
+  const range = max - min || 1;
+  const W = 60;
+  const H = 20;
+  const step = W / (points.length - 1);
+  const coords = points
+    .map((p, i) => {
+      const x = (i * step).toFixed(2);
+      const y = (H - ((Number(p.value_dkk) - min) / range) * H).toFixed(2);
+      return `${x},${y}`;
+    })
+    .join(" ");
+  return `
+    <svg class="account-sparkline" viewBox="0 0 ${W} ${H}" aria-hidden="true">
+      <polyline points="${coords}" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round" stroke-linecap="round" />
+    </svg>
+  `;
+}
+
+function bindAccountRows(root) {
+  root.querySelectorAll(".networth-update-btn").forEach((btn) => {
+    btn.addEventListener("click", (e) => {
+      e.stopPropagation();
+      // Stub — replaced by Task 13.
+      toast(`Update ${btn.dataset.accountName} (wired in next task)`);
+    });
+  });
+  root.querySelectorAll(".networth-account-row").forEach((row) => {
+    row.addEventListener("click", () => {
+      // Stub — replaced by Task 14.
+      toast(`History for account ${row.dataset.accountId} (wired in next task)`);
+    });
+  });
 }
 
 function renderDonut() {
@@ -299,4 +382,5 @@ function afterRender(root) {
   if (pills) positionSegIndicator(pills);
   renderMainChart();
   renderDonut();
+  bindAccountRows(root);
 }

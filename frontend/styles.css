@@ -713,12 +713,13 @@ dialog {
   max-width: 420px; width: 92%;
   padding: 1.25rem 1.25rem 1rem;
   box-shadow: var(--shadow-lg);
-  /* The custom date picker's calendar popup is position:absolute inside the
-     dialog. Without this, the popup forces dialog content to overflow and
-     paints a scrollbar. We keep dialogs short enough that visible overflow
-     isn't a content-clipping risk. */
-  overflow: visible;
 }
+
+/* The custom date picker's calendar popup is position:absolute inside the
+   balance dialog. Without this scope, the popup forces dialog content to
+   overflow and paints a scrollbar. Other dialogs keep their default
+   overflow so a long content list still scrolls inside the dialog. */
+#balance-dialog { overflow: visible; }
 dialog::backdrop { background: rgba(0, 0, 0, 0.55); }
 dialog h3 { margin-top: 0; }
 dialog form { margin: 0; }

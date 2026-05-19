@@ -30,7 +30,6 @@ const state = {
 const dialogState = {
   accountId: null,
   accountName: null,
-  entryId: null,
   initialDate: null,
   initialValue: null,
   datepicker: null,
@@ -44,10 +43,9 @@ function todayIso() {
   return `${y}-${m}-${day}`;
 }
 
-async function openBalanceDialog({ accountId, accountName, entryId = null, date = null, value = null }) {
+async function openBalanceDialog({ accountId, accountName, date = null, value = null }) {
   dialogState.accountId = accountId;
   dialogState.accountName = accountName;
-  dialogState.entryId = entryId;
   dialogState.initialDate = date || todayIso();
   dialogState.initialValue = value;
   const dlg = document.getElementById("balance-dialog");
@@ -94,6 +92,10 @@ function bindBalanceDialogOnce() {
   dlg.dataset.wired = "1";
   // Mount the custom date picker once; it's reused across opens via setValue/setMax.
   const mount = document.getElementById("balance-date-mount");
+  if (!mount) {
+    toast("Balance dialog markup missing", "error");
+    return;
+  }
   dialogState.datepicker = createDatePicker({
     value: todayIso(),
     max: todayIso(),
@@ -406,7 +408,7 @@ function renderHistoryList() {
       <li class="ah-entry-row">
         <span class="ah-entry-date">${fmtDate(e.entry_date)}</span>
         <span class="ah-entry-value">${fmtDKK(e.value_dkk)}</span>
-        <button class="ah-action-btn" data-action="edit" data-entry-id="${e.id}" data-date="${e.entry_date}" data-value="${e.value_dkk}" type="button" aria-label="Edit">✎</button>
+        <button class="ah-action-btn" data-action="edit" data-date="${e.entry_date}" data-value="${e.value_dkk}" type="button" aria-label="Edit">✎</button>
         <button class="ah-action-btn ah-action-danger" data-action="delete" data-entry-id="${e.id}" type="button" aria-label="Delete">✕</button>
       </li>`,
     )
@@ -418,7 +420,6 @@ function renderHistoryList() {
       openBalanceDialog({
         accountId: historyState.accountId,
         accountName: historyState.accountName,
-        entryId: btn.dataset.entryId,
         date: btn.dataset.date,
         value: btn.dataset.value,
       });

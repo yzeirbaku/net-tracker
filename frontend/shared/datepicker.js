@@ -17,7 +17,8 @@
  *   dp.element          — the root DOM node.
  *   dp.getValue()       — ISO date string or null.
  *   dp.setValue(iso)    — set programmatically (no onChange fire).
- *   dp.setMax(iso)      — change upper bound at runtime.
+ *   dp.setMin(iso)      — change lower bound at runtime (null = no lower bound).
+ *   dp.setMax(iso)      — change upper bound at runtime (null = no upper bound).
  */
 
 import { escapeHtml } from "./ui.js";
@@ -26,8 +27,8 @@ const MONTHS = [
   "January", "February", "March", "April", "May", "June",
   "July", "August", "September", "October", "November", "December",
 ];
-// Danish week — Monday first.
-const WEEKDAY_LABELS = ["M", "T", "W", "T", "F", "S", "S"];
+// Monday-first weekday headers. Two letters so Tue/Thu and Sat/Sun are unambiguous.
+const WEEKDAY_LABELS = ["Mo", "Tu", "We", "Th", "Fr", "Sa", "Su"];
 
 let openPicker = null;
 
@@ -204,15 +205,18 @@ export function createDatePicker({
     if (!isOpen) open();
   });
 
+  function shiftMonth(dir) {
+    viewMonth += dir;
+    if (viewMonth < 0) { viewMonth = 11; viewYear--; }
+    if (viewMonth > 11) { viewMonth = 0; viewYear++; }
+    renderPopup();
+  }
+
   popup.addEventListener("click", (e) => {
     e.stopPropagation();
     const navBtn = e.target.closest("[data-nav]");
     if (navBtn) {
-      const dir = navBtn.dataset.nav === "prev" ? -1 : 1;
-      viewMonth += dir;
-      if (viewMonth < 0) { viewMonth = 11; viewYear--; }
-      if (viewMonth > 11) { viewMonth = 0; viewYear++; }
-      renderPopup();
+      shiftMonth(navBtn.dataset.nav === "prev" ? -1 : 1);
       return;
     }
     if (e.target.matches("[data-today]")) {
@@ -233,10 +237,65 @@ export function createDatePicker({
     }
   });
 
+  function moveFocus(days) {
+    // Anchor: currently-focused cell if any; else selected; else today.
+    const focused = popup.querySelector(".dp-day:focus");
+    const anchorIso = focused?.dataset.iso || currentIso || isoFromDate(new Date());
+    const anchor = parseIso(anchorIso);
+    if (!anchor) return;
+    const target = new Date(anchor);
+    target.setDate(target.getDate() + days);
+    const maxDate = parseIso(maxIso);
+    const minDate = parseIso(minIso);
+    if (maxDate && target > maxDate) return;
+    if (minDate && target < minDate) return;
+    if (target.getFullYear() !== viewYear || target.getMonth() !== viewMonth) {
+      viewYear = target.getFullYear();
+      viewMonth = target.getMonth();
+      renderPopup();
+    }
+    const targetIso = isoFromDate(target);
+    const btn = popup.querySelector(`.dp-day[data-iso="${targetIso}"]:not([disabled])`);
+    if (btn) btn.focus();
+  }
+
+  popup.addEventListener("keydown", (e) => {
+    if (!root.classList.contains("dp-open")) return;
+    switch (e.key) {
+      case "ArrowLeft":  e.preventDefault(); moveFocus(-1);  break;
+      case "ArrowRight": e.preventDefault(); moveFocus(1);   break;
+      case "ArrowUp":    e.preventDefault(); moveFocus(-7);  break;
+      case "ArrowDown":  e.preventDefault(); moveFocus(7);   break;
+      case "PageUp":     e.preventDefault(); shiftMonth(-1); break;
+      case "PageDown":   e.preventDefault(); shiftMonth(1);  break;
+      case "Enter":
+      case " ": {
+        const focused = popup.querySelector(".dp-day:focus:not([disabled])");
+        if (focused) {
+          e.preventDefault();
+          commit(focused.dataset.iso);
+          closeOpen();
+          trigger.focus();
+        }
+        break;
+      }
+    }
+  });
+
   trigger.addEventListener("keydown", (e) => {
     if (e.key === "Enter" || e.key === " " || e.key === "ArrowDown") {
       e.preventDefault();
-      if (!root.classList.contains("dp-open")) trigger.click();
+      if (!root.classList.contains("dp-open")) {
+        trigger.click();
+        // Move focus to the selected day (or today / first enabled) so arrow keys work immediately.
+        requestAnimationFrame(() => {
+          const target =
+            popup.querySelector(".dp-day-selected:not([disabled])") ||
+            popup.querySelector(".dp-day-today:not([disabled])") ||
+            popup.querySelector(".dp-day:not([disabled])");
+          if (target) target.focus();
+        });
+      }
     }
   });
 
@@ -250,11 +309,20 @@ export function createDatePicker({
     setValue: (iso) => commit(iso, false),
     setMax: (iso) => {
       maxIso = iso;
-      if (root.classList.contains("dp-open")) renderPopup();
+      // If the popup is open we need a re-render; sync the view first so a
+      // change to the bounds doesn't leave the user staring at a month
+      // unrelated to their current selection.
+      if (root.classList.contains("dp-open")) {
+        syncViewToCurrent();
+        renderPopup();
+      }
     },
     setMin: (iso) => {
       minIso = iso;
-      if (root.classList.contains("dp-open")) renderPopup();
+      if (root.classList.contains("dp-open")) {
+        syncViewToCurrent();
+        renderPopup();
+      }
     },
   };
 }

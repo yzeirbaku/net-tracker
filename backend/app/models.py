@@ -2,7 +2,8 @@
 
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import date, datetime
+from decimal import Decimal
 from enum import Enum
 from typing import Annotated
 from uuid import UUID
@@ -138,3 +139,82 @@ class SessionOut(BaseModel):
 class UserOut(BaseModel):
     user_id: UUID
     email: str
+
+
+# ── Balance entries + net-worth payload ──────────────────────────────────
+
+
+class BalanceEntryCreate(BaseModel):
+    entry_date: date
+    value_dkk: Decimal
+
+
+class BalanceEntryOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: UUID
+    account_id: UUID
+    entry_date: date
+    value_dkk: Decimal
+    source: str
+    created_at: datetime
+
+
+class NetWorthSeriesPoint(BaseModel):
+    date: date
+    total_dkk: Decimal
+
+
+class NetWorthDelta(BaseModel):
+    period: str
+    delta_dkk: Decimal
+    anchor_date: date
+    is_since_start: bool
+
+
+class NetWorthCompositionSlice(BaseModel):
+    asset_class: str
+    value_dkk: Decimal
+    pct: float
+
+
+class NetWorthAccountSparkPoint(BaseModel):
+    date: date
+    value_dkk: Decimal
+
+
+class NetWorthAccountSummary(BaseModel):
+    id: UUID
+    name: str
+    asset_class: str
+    latest_value_dkk: Decimal
+    latest_entry_date: date
+    sparkline: list[NetWorthAccountSparkPoint]
+
+
+class NetWorthOut(BaseModel):
+    total_dkk: Decimal
+    as_of: date
+    series: list[NetWorthSeriesPoint]
+    deltas: list[NetWorthDelta]
+    composition: list[NetWorthCompositionSlice]
+    accounts: list[NetWorthAccountSummary]
+
+
+class AccountHistoryAccountInfo(BaseModel):
+    id: UUID
+    name: str
+    kind: str
+    asset_class: str | None
+
+
+class AccountHistoryEntry(BaseModel):
+    id: UUID
+    entry_date: date
+    value_dkk: Decimal
+    source: str
+
+
+class AccountHistoryOut(BaseModel):
+    account: AccountHistoryAccountInfo
+    entries: list[AccountHistoryEntry]

@@ -83,3 +83,36 @@ def test_asset_class_enum_values() -> None:
         "Pension",
         "Other",
     }
+
+
+# ── Balance entry model tests ─────────────────────────────────────────────
+
+
+from datetime import date
+from decimal import Decimal
+
+from pydantic import ValidationError
+
+from app.models import BalanceEntryCreate
+
+
+def test_balance_entry_create_basic() -> None:
+    m = BalanceEntryCreate(entry_date=date(2026, 1, 1), value_dkk=Decimal("100.50"))
+    assert m.entry_date == date(2026, 1, 1)
+    assert m.value_dkk == Decimal("100.50")
+
+
+def test_balance_entry_create_allows_negative() -> None:
+    """Margin / loan accounts can sit underwater."""
+    m = BalanceEntryCreate(entry_date=date(2026, 1, 1), value_dkk=Decimal("-50"))
+    assert m.value_dkk == Decimal("-50")
+
+
+def test_balance_entry_create_requires_value() -> None:
+    with pytest.raises(ValidationError):
+        BalanceEntryCreate(entry_date=date(2026, 1, 1))  # type: ignore[call-arg]
+
+
+def test_balance_entry_create_requires_date() -> None:
+    with pytest.raises(ValidationError):
+        BalanceEntryCreate(value_dkk=Decimal("100"))  # type: ignore[call-arg]

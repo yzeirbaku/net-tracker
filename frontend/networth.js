@@ -1,6 +1,13 @@
 import { api } from "./shared/api.js";
 import { createDatePicker } from "./shared/datepicker.js";
-import { confirmPrompt, escapeHtml, friendlyError, toast, withBusyButton } from "./shared/ui.js";
+import {
+  blurAutoFocusedInDialog,
+  confirmPrompt,
+  escapeHtml,
+  friendlyError,
+  toast,
+  withBusyButton,
+} from "./shared/ui.js";
 import { paintViewError, paintViewLoading } from "./shared/view-loading.js";
 
 const ASSET_CLASS_ORDER = ["Cash", "Stocks", "Crypto", "Precious Metals", "Pension", "Other"];
@@ -80,7 +87,10 @@ async function openBalanceDialog({ accountId, accountName, date = null, value = 
   valueInput.value = value != null ? String(value) : "";
   const exists = history.entries.some((e) => e.entry_date === dialogState.datepicker.getValue());
   hint.hidden = !exists;
-  if (!dlg.open) dlg.showModal();
+  if (!dlg.open) {
+    dlg.showModal();
+    blurAutoFocusedInDialog(dlg);
+  }
 }
 
 async function refreshReplaceHint() {
@@ -262,7 +272,7 @@ function renderHtml() {
     ${
       hasHistory
         ? `<div class="card"><div class="chart-container"><canvas id="networth-main-chart"></canvas></div></div>`
-        : `<div class="card"><p class="muted">No balance entries yet. Add one from Settings → Accounts (or use the Update button below) to start tracking.</p></div>`
+        : `<div class="card"><p class="muted">No balances tracked yet. Your wealth accounts are listed below — tap <strong>Add</strong> on each one to record its current balance and start tracking.</p></div>`
     }
     ${
       state.composition.length > 0
@@ -365,7 +375,10 @@ async function openHistoryDialog(account) {
   historyState.accountName = account.name;
   const dlg = document.getElementById("account-history-dialog");
   document.getElementById("ah-title").textContent = `${account.name} — history`;
-  if (!dlg.open) dlg.showModal();
+  if (!dlg.open) {
+    dlg.showModal();
+    blurAutoFocusedInDialog(dlg);
+  }
   await refreshHistoryDialog();
 }
 

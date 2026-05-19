@@ -11,10 +11,32 @@ export function toast(message, kind = "info") {
   toastTimer = setTimeout(() => el.classList.remove("show"), TOAST_TIMEOUT_MS);
 }
 
+/**
+ * Blur the element that `<dialog>.showModal()` auto-focused. iOS Safari (and
+ * sometimes Firefox) paints `:focus-visible` on programmatic focus, so the
+ * first button in the dialog menu appears with a permanent focus ring until
+ * the user taps somewhere else. Calling this on the next animation frame
+ * removes the ring without breaking the dialog's modal focus trap.
+ *
+ * Use this anywhere `<dialog>.showModal()` is called. openDialog() already
+ * does it; confirmPrompt() does it; bespoke callers (custom dialog flows
+ * with their own open code) MUST do it too.
+ */
+export function blurAutoFocusedInDialog(dlg) {
+  if (!dlg) return;
+  requestAnimationFrame(() => {
+    const active = document.activeElement;
+    if (active instanceof HTMLElement && dlg.contains(active)) active.blur();
+  });
+}
+
 export function openDialog(id) {
   const dlg = document.getElementById(id);
   if (!dlg) return null;
-  if (!dlg.open) dlg.showModal();
+  if (!dlg.open) {
+    dlg.showModal();
+    blurAutoFocusedInDialog(dlg);
+  }
   return dlg;
 }
 
@@ -132,13 +154,6 @@ export function confirmPrompt({ title = "Confirm", message = "", okLabel = "Conf
     };
     dlg.addEventListener("close", onClose);
     dlg.showModal();
-    // showModal() auto-focuses Cancel (the first focusable). iOS Safari
-    // treats programmatic focus as `:focus-visible`, painting a ring
-    // that looks stuck. Blur it — the dialog itself remains modal so
-    // keyboard focus trap still works.
-    requestAnimationFrame(() => {
-      const active = document.activeElement;
-      if (active instanceof HTMLElement && dlg.contains(active)) active.blur();
-    });
+    blurAutoFocusedInDialog(dlg);
   });
 }

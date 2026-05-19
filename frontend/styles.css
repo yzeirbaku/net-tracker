@@ -65,17 +65,7 @@ body {
   min-height: 100vh;
 }
 
-/* Smooth theme toggle: fade surface/text/border colors when [data-theme]
-   flips. Uses a Material-style smoothing curve (slow start + slow end, with
-   most of the movement in the middle) over 380ms — long enough to read as
-   "deliberate", short enough to not feel sluggish. */
-body, header, .card, .settings-section, dialog, .toast,
-.seg-group, .dd-list {
-  transition: background-color 380ms cubic-bezier(0.4, 0, 0.2, 1),
-              color 380ms cubic-bezier(0.4, 0, 0.2, 1),
-              border-color 380ms cubic-bezier(0.4, 0, 0.2, 1),
-              box-shadow 380ms cubic-bezier(0.4, 0, 0.2, 1);
-}
+/* Theme toggle is intentionally instant — no cross-fade. */
 
 /* ---------- header ----------
    Sizes mirror gold-bar-tracker: header padding 1rem desktop / 0.7rem 1rem
@@ -135,7 +125,13 @@ header h1 {
   header { padding: 0.7rem 1rem; gap: 0.15rem; }
   header h1 { font-size: 1.15rem; }
   .icon-btn { width: 40px; height: 40px; font-size: 1.2rem; }
-  #menu-btn { width: 36px; height: 36px; font-size: 1.55rem; }
+  /* Bigger glyph + 2px upward nudge so the burger sits visually above
+     the title baseline rather than centered with the descender space. */
+  #menu-btn {
+    width: 36px; height: 36px;
+    font-size: 1.75rem;
+    transform: translateY(-2px);
+  }
 }
 
 /* ---------- drawer ---------- */
@@ -149,9 +145,7 @@ header h1 {
   z-index: 200;
   display: flex; flex-direction: column; gap: 0.35rem;
   transform: translateX(-100%);
-  transition: transform 0.22s ease,
-              background-color 380ms cubic-bezier(0.4, 0, 0.2, 1),
-              border-color 380ms cubic-bezier(0.4, 0, 0.2, 1);
+  transition: transform 0.22s ease;
   pointer-events: none;
 }
 .menu-dropdown.is-open { transform: translateX(0); pointer-events: auto; }
@@ -496,32 +490,27 @@ label { display: block; font-size: 0.78rem; color: var(--muted); margin-bottom: 
   margin-left: 0.5rem;
 }
 
-/* The grid wrapper drives the height animation. minmax(0, 0fr) → (0, 1fr)
-   transitions smoothly; the explicit 0 minimum keeps Safari from
-   falling back to min-content sizing on the closed state. */
+/* The wrap is a plain block with `overflow: hidden` and an animatable
+   height. Closed = height 0; opening = JS sets explicit height to the
+   measured scrollHeight, transition runs, then we clear back to auto
+   so future content changes (adding a row) don't need re-measurement.
+   Plain height transitions are much smoother than grid-template-rows
+   on mobile Safari because they don't trigger grid layout recompute
+   each frame. */
 .settings-section > .settings-body-wrap {
-  display: grid;
-  grid-template-rows: minmax(0, 0fr);
-  transition: grid-template-rows 360ms cubic-bezier(0.4, 0, 0.2, 1);
-}
-.settings-section[data-open="true"] > .settings-body-wrap {
-  grid-template-rows: minmax(0, 1fr);
-}
-/* min-height:0 lets the grid shrink past the item's intrinsic height,
-   overflow:hidden clips during the transition. Vertical padding is 0
-   when closed and animates to 1.1rem when open — otherwise the body's
-   bottom padding would keep the box ~17px tall even at 0fr and leak
-   the first row of content below the collapsed card. The padding
-   transition runs in lockstep with grid-template-rows so it reads as
-   one motion. */
-.settings-section > .settings-body-wrap > .settings-body {
-  min-height: 0;
   overflow: hidden;
-  padding: 0 1.1rem;
-  transition: padding 360ms cubic-bezier(0.4, 0, 0.2, 1);
+  height: 0;
+  transition: height 260ms cubic-bezier(0.32, 0.72, 0, 1);
 }
-.settings-section[data-open="true"] > .settings-body-wrap > .settings-body {
+.settings-section > .settings-body-wrap > .settings-body {
   padding: 0 1.1rem 1.1rem;
+}
+/* While the wrap is animating or fully open but not yet "revealed",
+   keep the body's overflow clipped so popups don't leak. Once the
+   open transition settles, JS flips [data-revealed=true] which lets
+   the asset dropdown / color picker escape the card bounds. */
+.settings-section > .settings-body-wrap > .settings-body {
+  overflow: hidden;
 }
 .settings-section[data-open="true"][data-revealed="true"]
   > .settings-body-wrap > .settings-body {
@@ -795,10 +784,6 @@ dialog menu button[value="save"].dialog-danger-confirm {
   .card { padding: 1.25rem 1.4rem 1.4rem; }
   .settings-summary { padding: 1.05rem 1.4rem; }
   .settings-section > .settings-body-wrap > .settings-body {
-    padding: 0 1.4rem;
-  }
-  .settings-section[data-open="true"]
-    > .settings-body-wrap > .settings-body {
     padding: 0 1.4rem 1.3rem;
   }
 }

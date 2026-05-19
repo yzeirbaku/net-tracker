@@ -257,12 +257,9 @@ function closeColorPopup() {
 /**
  * Restore a section to its open state without animating (used after
  * re-renders, e.g. when the user adds a category and we re-fetch).
- *
- * The browser may or may not fire a transition for an attribute change
- * that happens before the first paint of a freshly-inserted element.
- * To stay deterministic, we briefly disable the transition, flip the
- * attributes, force a reflow, then restore — guarantees the section
- * appears instantly in its open state with no animation flash.
+ * Suppresses the height transition, flips attributes, and sets the
+ * wrap to `height: auto` so future content changes don't need
+ * re-measurement.
  */
 function keepOpen(section) {
   const el = document.querySelector(`[data-section="${section}"]`);
@@ -274,23 +271,26 @@ function keepOpen(section) {
   el.dataset.revealed = "true";
   if (btn) btn.setAttribute("aria-expanded", "true");
   if (wrap) {
+    wrap.style.height = "auto";
     void wrap.offsetHeight;
     wrap.style.transition = "";
   }
 }
 
 /**
- * Hook a settings section so clicking its summary toggles the
- * data-open attribute, which the CSS uses to drive the
- * grid-template-rows 0fr ↔ 1fr animation. Pure CSS animation; no
- * height measurement, no display:none flicker.
+ * Animate the wrap's height between 0 and its measured scrollHeight.
+ * Plain height transitions animate smoothly on iOS Safari (no grid
+ * track recompute per frame). The body is always rendered, so
+ * scrollHeight is reliable even when starting from height:0 — the
+ * intrinsic size of the children isn't affected by `overflow: hidden`.
  *
- * `data-revealed` is the "fully open AND animation settled" state.
- * While the wrapper is transitioning we keep overflow:hidden on the
- * body so child content gets clipped to the animated height; once the
- * transition lands and the section is in its final open position, we
- * flip [data-revealed=true] which lets internal popups escape the
- * card bounds.
+ * Closing flow: read current scrollHeight, pin the wrap to that
+ * explicit height, then on the next frame set it back to 0 so the
+ * browser has two distinct values to transition between.
+ *
+ * Opening flow: pin to 0 (already there via CSS), set explicit
+ * scrollHeight, transitionend → clear to `auto` so dynamic content
+ * changes don't get trapped at a stale height.
  */
 function bindAccordion(section) {
   if (!section || section.dataset.accordionWired === "1") return;
@@ -302,27 +302,34 @@ function bindAccordion(section) {
   btn.addEventListener("click", () => {
     const isOpen = section.dataset.open === "true";
     if (isOpen) {
-      // Closing: drop the revealed flag first so overflow re-clips
-      // before grid-template-rows starts shrinking; otherwise content
-      // briefly overflows below the collapsing wrapper.
+      // Closing: re-clip overflow first so popups don't trail outside
+      // the shrinking box; then pin the current natural height as
+      // explicit pixels and transition it to 0.
       section.dataset.revealed = "false";
+      wrap.style.height = wrap.scrollHeight + "px";
       requestAnimationFrame(() => {
+        wrap.style.height = "0px";
         section.dataset.open = "false";
         btn.setAttribute("aria-expanded", "false");
       });
     } else {
+      // Opening: from height:0, transition to the measured natural
+      // height. scrollHeight returns the unclipped intrinsic size.
       section.dataset.open = "true";
       btn.setAttribute("aria-expanded", "true");
+      wrap.style.height = wrap.scrollHeight + "px";
     }
   });
 
   wrap.addEventListener("transitionend", (e) => {
-    if (e.propertyName !== "grid-template-rows") return;
+    if (e.propertyName !== "height") return;
     if (section.dataset.open === "true") {
+      // Open + settled: let the wrap grow/shrink naturally from here.
+      wrap.style.height = "auto";
       section.dataset.revealed = "true";
       // The kind seg lives inside the Accounts accordion; its button
-      // offsets are 0 while the wrap is collapsed. Now that it's open,
-      // measure and slide the indicator into place.
+      // offsets are 0 while the wrap is collapsed. Now that it's
+      // open, measure and slide the indicator into place.
       section.querySelectorAll(".seg-group").forEach(positionSegIndicator);
     }
   });

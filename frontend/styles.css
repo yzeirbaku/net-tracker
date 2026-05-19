@@ -856,3 +856,50 @@ dialog menu button[value="save"].dialog-danger-confirm {
   .chart-container { height: 200px; }
   .chart-container-tall { height: 240px; }
 }
+
+.chart-container-square {
+  height: 260px;
+  max-width: 320px;
+  margin: 0 auto;
+}
+
+.card-title {
+  margin: 0 0 0.75rem;
+  font-size: 1rem;
+  font-weight: 600;
+}
+
+.donut-legend {
+  list-style: none;
+  margin: 1rem 0 0;
+  padding: 0;
+}
+
+.donut-legend-row {
+  display: grid;
+  grid-template-columns: 12px 1fr auto auto;
+  gap: 0.6rem;
+  align-items: center;
+  padding: 0.35rem 0;
+  font-size: 0.92rem;
+  border-bottom: 1px solid rgba(255,255,255,0.05);
+}
+
+.donut-legend-row:last-child { border-bottom: 0; }
+
+.donut-legend-dot {
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+}
+
+.donut-legend-pct {
+  color: var(--text-muted);
+  min-width: 3.4em;
+  text-align: right;
+}
+
+.donut-legend-value {
+  font-variant-numeric: tabular-nums;
+}

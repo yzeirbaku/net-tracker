@@ -106,7 +106,70 @@ function renderHtml() {
         ? `<div class="card"><div class="chart-container"><canvas id="networth-main-chart"></canvas></div></div>`
         : `<div class="card"><p class="muted">No balance entries yet. Add one from Settings → Accounts (or use the Update button below) to start tracking.</p></div>`
     }
+    ${
+      state.composition.length > 0
+        ? `
+      <div class="card">
+        <h3 class="card-title">Composition</h3>
+        <div class="chart-container chart-container-square">
+          <canvas id="networth-donut-chart"></canvas>
+        </div>
+        <ul class="donut-legend">
+          ${state.composition
+            .map(
+              (c) => `
+                <li class="donut-legend-row">
+                  <span class="donut-legend-dot" style="background:${
+                    ASSET_CLASS_COLORS[c.asset_class] || "#999"
+                  }"></span>
+                  <span class="donut-legend-name">${escapeHtml(c.asset_class)}</span>
+                  <span class="donut-legend-value">${fmtDKK(c.value_dkk)}</span>
+                  <span class="donut-legend-pct">${(c.pct * 100).toFixed(1)}%</span>
+                </li>`,
+            )
+            .join("")}
+        </ul>
+      </div>`
+        : ""
+    }
   `;
+}
+
+function renderDonut() {
+  const canvas = document.getElementById("networth-donut-chart");
+  if (!canvas || !window.Chart || state.composition.length === 0) return;
+  if (state.donutChart) {
+    state.donutChart.destroy();
+    state.donutChart = null;
+  }
+  state.donutChart = new window.Chart(canvas.getContext("2d"), {
+    type: "doughnut",
+    data: {
+      labels: state.composition.map((c) => c.asset_class),
+      datasets: [
+        {
+          data: state.composition.map((c) => Number(c.value_dkk)),
+          backgroundColor: state.composition.map(
+            (c) => ASSET_CLASS_COLORS[c.asset_class] || "#999",
+          ),
+          borderWidth: 0,
+        },
+      ],
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      cutout: "62%",
+      plugins: {
+        legend: { display: false },
+        tooltip: {
+          callbacks: {
+            label: (item) => `${item.label}: ${fmtDKK(item.parsed)}`,
+          },
+        },
+      },
+    },
+  });
 }
 
 function rangeFromPeriod(period) {
@@ -235,4 +298,5 @@ function afterRender(root) {
   const pills = root.querySelector(".networth-period-pills");
   if (pills) positionSegIndicator(pills);
   renderMainChart();
+  renderDonut();
 }

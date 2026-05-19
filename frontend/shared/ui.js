@@ -23,6 +23,72 @@ export function closeDialog(id) {
   if (dlg && dlg.open) dlg.close();
 }
 
+/**
+ * Disable a button + swap its label for a "doing the thing" message while
+ * `fn()` is in flight; restore on completion (success OR failure). Always
+ * use this around any button click that fires a backend call so the user
+ * can't double-submit.
+ *
+ *   await withBusyButton(btn, "Adding…", async () => {
+ *     await api.post("/categories", {...});
+ *   });
+ */
+export async function withBusyButton(btn, busyLabel, fn) {
+  if (!btn) return await fn();
+  const originalLabel = btn.textContent;
+  btn.disabled = true;
+  btn.textContent = busyLabel;
+  try {
+    return await fn();
+  } finally {
+    btn.disabled = false;
+    btn.textContent = originalLabel;
+  }
+}
+
+// Backend error codes (FastAPI HTTPException detail strings) → user-facing
+// messages. Anything not in this map falls back to a generic message — we
+// never surface raw backend codes / SQL constraint names / variable names.
+const _ERROR_MESSAGES = {
+  // accounts.py
+  account_name_taken: "An account with this name already exists.",
+  asset_class_required_for_wealth: "Pick an asset class for wealth accounts.",
+  asset_class_only_for_wealth: "Only wealth accounts have an asset class.",
+  // categories.py
+  category_name_taken: "A category with this name already exists.",
+  // balance_entries.py
+  not_a_wealth_account: "Balances can only be added to wealth accounts.",
+  future_date_not_allowed: "Future dates aren't allowed.",
+  before_earliest_entry: "Can't add an entry earlier than this account's first balance.",
+  // networth.py
+  invalid_range: "The selected date range is invalid.",
+  // shared
+  not_found: "That item couldn't be found — it may have been removed.",
+  // auth — generally handled by the global 401 path, but cover for safety.
+  unauthorized: "You're not signed in.",
+  invalid_token: "Sign-in link is invalid.",
+  token_used: "Sign-in link has already been used.",
+  token_expired: "Sign-in link has expired — request a new one.",
+};
+
+/**
+ * Map a thrown Error from `api.js` into a friendly message. Never surfaces
+ * raw backend codes / field names / SQL details to the UI.
+ *
+ *   try { ... } catch (err) { toast(friendlyError(err, "Couldn't add account"), "error"); }
+ *
+ * `fallbackPrefix` is the action context (e.g., "Couldn't add account") used
+ * when the error code isn't in the map. Network errors and unknown codes
+ * both fall back to a generic, action-scoped message.
+ */
+export function friendlyError(err, fallbackPrefix) {
+  const code = err?.message;
+  if (typeof code === "string" && code in _ERROR_MESSAGES) {
+    return _ERROR_MESSAGES[code];
+  }
+  return `${fallbackPrefix}. Please try again.`;
+}
+
 export function escapeHtml(s) {
   if (s === null || s === undefined) return "";
   return String(s)

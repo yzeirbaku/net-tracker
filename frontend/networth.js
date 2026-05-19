@@ -1,6 +1,6 @@
 import { api } from "./shared/api.js";
 import { createDatePicker } from "./shared/datepicker.js";
-import { confirmPrompt, escapeHtml, toast } from "./shared/ui.js";
+import { confirmPrompt, escapeHtml, friendlyError, toast, withBusyButton } from "./shared/ui.js";
 import { paintViewError, paintViewLoading } from "./shared/view-loading.js";
 
 const ASSET_CLASS_ORDER = ["Cash", "Stocks", "Crypto", "Precious Metals", "Pension", "Other"];
@@ -113,7 +113,7 @@ function bindBalanceDialogOnce() {
   });
   mount.appendChild(dialogState.datepicker.element);
   document.getElementById("balance-cancel").addEventListener("click", () => dlg.close());
-  document.getElementById("balance-save").addEventListener("click", async () => {
+  document.getElementById("balance-save").addEventListener("click", async (e) => {
     const valueInput = document.getElementById("balance-value");
     const date = dialogState.datepicker.getValue();
     const raw = valueInput.value.trim().replace(",", ".");
@@ -121,23 +121,18 @@ function bindBalanceDialogOnce() {
     if (!raw) { toast("Value required", "error"); return; }
     const num = Number(raw);
     if (!Number.isFinite(num)) { toast("Value isn't a number", "error"); return; }
-    const btn = document.getElementById("balance-save");
-    btn.disabled = true;
-    const label = btn.textContent;
-    btn.textContent = "Saving…";
     try {
-      await api.post(`/accounts/${dialogState.accountId}/balance`, {
-        entry_date: date,
-        value_dkk: raw,
-      });
+      await withBusyButton(e.currentTarget, "Saving…", () =>
+        api.post(`/accounts/${dialogState.accountId}/balance`, {
+          entry_date: date,
+          value_dkk: raw,
+        }),
+      );
       dlg.close();
       toast("Balance saved");
       await renderNetWorth();
     } catch (err) {
-      toast(`Couldn't save: ${err.message}`, "error");
-    } finally {
-      btn.disabled = false;
-      btn.textContent = label;
+      toast(friendlyError(err, "Couldn't save balance"), "error");
     }
   });
 }
@@ -164,8 +159,8 @@ export async function renderNetWorth() {
   try {
     data = await api.get("/networth");
   } catch (err) {
-    if (isInitial) paintViewError(root, `Couldn't load net worth: ${err.message}`);
-    else toast(`Couldn't refresh: ${err.message}`, "error");
+    if (isInitial) paintViewError(root, friendlyError(err, "Couldn't load Net Worth"));
+    else toast(friendlyError(err, "Couldn't refresh Net Worth"), "error");
     return;
   }
   state.total_dkk = data.total_dkk;
@@ -379,7 +374,7 @@ async function refreshHistoryDialog() {
   try {
     history = await api.get(`/accounts/${historyState.accountId}/history`);
   } catch (err) {
-    toast(`Couldn't load history: ${err.message}`, "error");
+    toast(friendlyError(err, "Couldn't load history"), "error");
     return;
   }
   historyState.entries = history.entries;
@@ -484,12 +479,14 @@ function renderHistoryList() {
       });
       if (!ok) return;
       try {
-        await api.delete(`/accounts/${historyState.accountId}/balance/${btn.dataset.entryId}`);
+        await withBusyButton(btn, "…", () =>
+          api.delete(`/accounts/${historyState.accountId}/balance/${btn.dataset.entryId}`),
+        );
         toast("Entry deleted");
         await refreshHistoryDialog();
         await renderNetWorth();
       } catch (err) {
-        toast(`Couldn't delete: ${err.message}`, "error");
+        toast(friendlyError(err, "Couldn't delete entry"), "error");
       }
     });
   });

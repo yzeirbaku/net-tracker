@@ -1,6 +1,6 @@
 import { api } from "./shared/api.js";
 import { createDropdown } from "./shared/dropdown.js";
-import { confirmPrompt, escapeHtml, toast } from "./shared/ui.js";
+import { confirmPrompt, escapeHtml, friendlyError, toast, withBusyButton } from "./shared/ui.js";
 import { paintViewError, paintViewLoading } from "./shared/view-loading.js";
 
 const ASSET_CLASSES = ["Cash", "Stocks", "Crypto", "Precious Metals", "Pension", "Other"];
@@ -416,17 +416,19 @@ function bindHandlers() {
   }
 
   // Category add
-  document.getElementById("cat-add").addEventListener("click", async () => {
+  document.getElementById("cat-add").addEventListener("click", async (e) => {
     const input = document.getElementById("cat-name");
     const name = input.value.trim();
     if (!name) return;
     try {
-      await api.post("/categories", { name, color: state.pendingCatColor });
+      await withBusyButton(e.currentTarget, "Adding…", () =>
+        api.post("/categories", { name, color: state.pendingCatColor }),
+      );
       input.value = "";
       await renderSettings();
       keepOpen("categories");
-    } catch (e) {
-      toast(`Could not add category: ${e.message}`, "error");
+    } catch (err) {
+      toast(friendlyError(err, "Couldn't add category"), "error");
     }
   });
   document.querySelectorAll("[data-delete-category]").forEach((btn) => {
@@ -439,11 +441,11 @@ function bindHandlers() {
       });
       if (!ok) return;
       try {
-        await api.delete(`/categories/${id}`);
+        await withBusyButton(btn, "Deleting…", () => api.delete(`/categories/${id}`));
         await renderSettings();
         keepOpen("categories");
-      } catch (e) {
-        toast(`Could not delete: ${e.message}`, "error");
+      } catch (err) {
+        toast(friendlyError(err, "Couldn't delete category"), "error");
       }
     });
   });
@@ -452,7 +454,7 @@ function bindHandlers() {
   bindSegGroup("acct-kind-seg", "kind");
 
   // Account add
-  document.getElementById("acct-add").addEventListener("click", async () => {
+  document.getElementById("acct-add").addEventListener("click", async (e) => {
     const name = document.getElementById("acct-name").value.trim();
     const kind = state.pendingAcctKind;
     const body = { name, kind };
@@ -462,11 +464,11 @@ function bindHandlers() {
       return;
     }
     try {
-      await api.post("/accounts", body);
+      await withBusyButton(e.currentTarget, "Adding…", () => api.post("/accounts", body));
       await renderSettings();
       keepOpen("accounts");
-    } catch (e) {
-      toast(`Could not add account: ${e.message}`, "error");
+    } catch (err) {
+      toast(friendlyError(err, "Couldn't add account"), "error");
     }
   });
   document.querySelectorAll("[data-delete-account]").forEach((btn) => {
@@ -479,11 +481,11 @@ function bindHandlers() {
       });
       if (!ok) return;
       try {
-        await api.delete(`/accounts/${id}`);
+        await withBusyButton(btn, "Deleting…", () => api.delete(`/accounts/${id}`));
         await renderSettings();
         keepOpen("accounts");
-      } catch (e) {
-        toast(`Could not delete: ${e.message}`, "error");
+      } catch (err) {
+        toast(friendlyError(err, "Couldn't delete account"), "error");
       }
     });
   });

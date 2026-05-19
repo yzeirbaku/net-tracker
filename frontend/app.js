@@ -5,7 +5,7 @@ import {
   readTokenFromHash,
   setToken,
 } from "./shared/auth.js";
-import { closeDialog, openDialog, toast } from "./shared/ui.js";
+import { closeDialog, friendlyError, openDialog, toast, withBusyButton } from "./shared/ui.js";
 import { renderBudget } from "./budget.js";
 import { renderNetWorth } from "./networth.js";
 import { renderSettings } from "./settings.js";
@@ -148,26 +148,19 @@ function bindLogin() {
   });
   $("#login-send").addEventListener("click", async (e) => {
     e.preventDefault();
-    const btn = e.currentTarget;
     const email = $("#login-email").value.trim();
     if (!email) {
       toast("Email required", "error");
       return;
     }
-    // Disable + label the button while the request is in flight so
-    // an impatient second tap doesn't fire a second magic-link email.
-    btn.disabled = true;
-    const originalLabel = btn.textContent;
-    btn.textContent = "Sending…";
     try {
-      await api.post("/auth/request-link", { email });
+      await withBusyButton(e.currentTarget, "Sending…", () =>
+        api.post("/auth/request-link", { email }),
+      );
       toast("Check your inbox for the sign-in link");
       closeDialog("login-dialog");
     } catch (err) {
-      toast(`Could not send link: ${err.message}`, "error");
-    } finally {
-      btn.disabled = false;
-      btn.textContent = originalLabel;
+      toast(friendlyError(err, "Couldn't send sign-in link"), "error");
     }
   });
 }
@@ -181,7 +174,7 @@ async function tryVerify() {
     toast(`Signed in as ${res.email}`);
     return true;
   } catch (err) {
-    toast(`Sign-in failed: ${err.message}`, "error");
+    toast(friendlyError(err, "Sign-in failed"), "error");
     return false;
   }
 }

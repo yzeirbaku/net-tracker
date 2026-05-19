@@ -41,7 +41,11 @@ async function request(method, path, body) {
   }
 
   if (!res.ok) {
-    const detail = payload && payload.detail ? payload.detail : `${method} ${path} failed (${res.status})`;
+    // err.message carries the backend's `detail` code (e.g. "account_name_taken")
+    // so the UI's friendlyError() helper can map it to a user-facing string.
+    // When the backend didn't send a JSON detail (500s, empty bodies), we emit
+    // an opaque "server_error" sentinel — never a method/path leak.
+    const detail = payload && payload.detail ? payload.detail : "server_error";
     const err = new Error(detail);
     err.status = res.status;
     err.payload = payload;

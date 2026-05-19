@@ -6,6 +6,7 @@
  */
 
 import { api } from "./shared/api.js";
+import { friendlyError } from "./shared/ui.js";
 import { paintViewError, paintViewLoading } from "./shared/view-loading.js";
 
 let booted = false;
@@ -17,7 +18,7 @@ export async function renderSpending() {
   try {
     await api.get("/auth/me");
   } catch (err) {
-    paintViewError(root, `Couldn't reach backend: ${err.message}`);
+    paintViewError(root, friendlyError(err, "Couldn't load Spending"));
     return;
   }
   booted = true;

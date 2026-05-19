@@ -35,6 +35,9 @@ router = APIRouter(prefix="/networth", tags=["networth"])
 
 _PERIOD_DAYS = {"1M": 30, "3M": 90, "6M": 180, "1Y": 365}
 
+# Canonical display order for asset classes. Matches the spec's Net Worth view.
+_ASSET_CLASS_ORDER = ("Cash", "Stocks", "Crypto", "Gold", "Pension", "Other")
+
 
 def latest_per_account(
     entries: list[dict[str, Any]],
@@ -208,7 +211,12 @@ async def get_networth(
                 ],
             )
         )
-    accounts.sort(key=lambda a: (a.asset_class, a.name))
+    def _class_rank(cls: str) -> int:
+        if cls in _ASSET_CLASS_ORDER:
+            return _ASSET_CLASS_ORDER.index(cls)
+        return len(_ASSET_CLASS_ORDER)
+
+    accounts.sort(key=lambda a: (_class_rank(a.asset_class), a.name))
 
     return NetWorthOut(
         total_dkk=total,

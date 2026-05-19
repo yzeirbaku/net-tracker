@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import date, timedelta
+from datetime import date
 from decimal import Decimal
 
 from httpx import AsyncClient
@@ -123,13 +123,22 @@ async def test_networth_series_sparse(
 ) -> None:
     aid = await _wealth(client, authed_user["token"], "W")
     headers = _h(authed_user["token"])
-    today = date.today()
-    d1 = (today - timedelta(days=200)).isoformat()
-    d2 = (today - timedelta(days=100)).isoformat()
-    await _balance(client, authed_user["token"], aid, d1, "100")
-    await _balance(client, authed_user["token"], aid, d2, "150")
-    r = await client.get("/networth", headers=headers)
+    await _balance(client, authed_user["token"], aid, "2026-01-10", "100")
+    await _balance(client, authed_user["token"], aid, "2026-02-10", "150")
+    # Pin the range so the assertion is deterministic — change dates 2026-01-10
+    # and 2026-02-10 fall strictly inside (2026-01-01, 2026-03-01], producing
+    # exactly: prefix at 2026-01-01 (NW=0, before any entry) + the two changes.
+    r = await client.get(
+        "/networth?from=2026-01-01&to=2026-03-01", headers=headers
+    )
     body = r.json()
-    # Sparse: prefix point at `from` (defaults to today-365)
-    # + the two change dates that fall inside the range.
-    assert 2 <= len(body["series"]) <= 3
+    assert [p["date"] for p in body["series"]] == [
+        "2026-01-01",
+        "2026-01-10",
+        "2026-02-10",
+    ]
+    assert [Decimal(p["total_dkk"]) for p in body["series"]] == [
+        Decimal("0"),
+        Decimal("100"),
+        Decimal("150"),
+    ]

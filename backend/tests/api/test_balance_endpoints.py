@@ -246,3 +246,24 @@ async def test_get_history_works_for_non_wealth(
     r = await client.get(f"/accounts/{aid}/history", headers=_h(authed_user["token"]))
     assert r.status_code == 200
     assert r.json()["entries"] == []
+
+
+async def test_get_history_other_user_account_404(
+    client: AsyncClient, authed_user: dict[str, str]
+) -> None:
+    aid = await _create_wealth_account(client, authed_user["token"])
+    from app import db
+
+    pool = db.pool()
+    async with pool.acquire() as conn:
+        other_user_id = await conn.fetchval(
+            "INSERT INTO users (email) VALUES ($1) RETURNING id", "other@x.com"
+        )
+        other_session = await conn.fetchval(
+            "INSERT INTO sessions (user_id) VALUES ($1) RETURNING id", other_user_id
+        )
+    r = await client.get(
+        f"/accounts/{aid}/history",
+        headers={"Authorization": f"Bearer {other_session}"},
+    )
+    assert r.status_code == 404

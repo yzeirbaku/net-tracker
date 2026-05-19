@@ -42,25 +42,25 @@ async def upsert_balance_entry(
         if account["kind"] != "wealth":
             raise HTTPException(status_code=400, detail="not_a_wealth_account")
 
-        existed = await conn.fetchval(
-            "SELECT 1 FROM balance_entries WHERE account_id = $1 AND entry_date = $2",
-            account_id,
-            payload.entry_date,
-        )
-
+        # `xmax = 0` on the returned row means it was just inserted; any
+        # non-zero xmax means an update path ran. Lets us pick 201 vs 200
+        # race-free in a single round-trip.
         row = await conn.fetchrow(
             "INSERT INTO balance_entries (account_id, entry_date, value_dkk, source) "
             "VALUES ($1, $2, $3, 'manual') "
             "ON CONFLICT (account_id, entry_date) "
             "DO UPDATE SET value_dkk = EXCLUDED.value_dkk "
-            "RETURNING id, account_id, entry_date, value_dkk, source, created_at",
+            "RETURNING id, account_id, entry_date, value_dkk, source, created_at, "
+            "(xmax = 0) AS inserted",
             account_id,
             payload.entry_date,
             payload.value_dkk,
         )
 
-    response.status_code = 200 if existed else 201
-    return BalanceEntryOut(**dict(row))
+    response.status_code = 201 if row["inserted"] else 200
+    row_dict = dict(row)
+    row_dict.pop("inserted")
+    return BalanceEntryOut(**row_dict)
 
 
 @router.delete("/{account_id}/balance/{entry_id}", status_code=204)

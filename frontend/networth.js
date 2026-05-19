@@ -511,10 +511,22 @@ function rangeFromPeriod(period) {
 function filterSeriesForPeriod(series, period) {
   const { from, to } = rangeFromPeriod(period);
   if (!from) return series.slice();
-  return series.filter((p) => {
+  const inRange = series.filter((p) => {
     const d = new Date(p.date);
     return d >= from && d <= to;
   });
+  if (inRange.length > 0) return inRange;
+  // No change-dates in this subrange — carry forward the latest pre-cutoff
+  // total so the chart renders as a flat step instead of a blank canvas.
+  const prior = series.filter((p) => new Date(p.date) < from);
+  if (prior.length === 0) return [];
+  const lastTotal = prior[prior.length - 1].total_dkk;
+  const fromIso = from.toISOString().slice(0, 10);
+  const toIso = to.toISOString().slice(0, 10);
+  return [
+    { date: fromIso, total_dkk: lastTotal },
+    { date: toIso, total_dkk: lastTotal },
+  ];
 }
 
 function renderMainChart() {

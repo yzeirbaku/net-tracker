@@ -87,13 +87,14 @@ function renderHtml() {
       </div>
     </div>
 
-    <details class="settings-section" data-section="categories">
-      <summary>
+    <section class="settings-section" data-section="categories" data-open="false">
+      <button type="button" class="settings-summary" aria-expanded="false">
         <span>Categories<span class="count">${state.categories.length}</span></span>
-      </summary>
-      <div class="settings-body">
+      </button>
+      <div class="settings-body-wrap">
+       <div class="settings-body">
         <div class="add-row-with-color">
-          <input id="cat-name" type="text" placeholder="New category name" />
+          <input id="cat-name" type="text" placeholder="e.g. Groceries" />
           <div class="color-picker" id="cat-color-picker" hidden>
             <span class="color-prompt">Pick a color</span>
             <button
@@ -137,14 +138,16 @@ function renderHtml() {
                   .join("")
           }
         </ul>
+       </div>
       </div>
-    </details>
+    </section>
 
-    <details class="settings-section" data-section="accounts">
-      <summary>
+    <section class="settings-section" data-section="accounts" data-open="false">
+      <button type="button" class="settings-summary" aria-expanded="false">
         <span>Accounts<span class="count">${state.accounts.length}</span></span>
-      </summary>
-      <div class="settings-body">
+      </button>
+      <div class="settings-body-wrap">
+       <div class="settings-body">
         <div class="add-form">
           <div class="field">
             <label for="acct-name">Name</label>
@@ -188,8 +191,9 @@ function renderHtml() {
                   .join("")
           }
         </ul>
+       </div>
       </div>
-    </details>
+    </section>
   `;
 }
 
@@ -236,9 +240,74 @@ function closeColorPopup() {
   trigger.setAttribute("aria-expanded", "false");
 }
 
+/**
+ * Restore a section to its open state without animating (used after
+ * re-renders, e.g. when the user adds a category and we re-fetch).
+ *
+ * The browser may or may not fire a transition for an attribute change
+ * that happens before the first paint of a freshly-inserted element.
+ * To stay deterministic, we briefly disable the transition, flip the
+ * attributes, force a reflow, then restore — guarantees the section
+ * appears instantly in its open state with no animation flash.
+ */
 function keepOpen(section) {
   const el = document.querySelector(`[data-section="${section}"]`);
-  if (el) el.open = true;
+  if (!el) return;
+  const wrap = el.querySelector(".settings-body-wrap");
+  const btn = el.querySelector(".settings-summary");
+  if (wrap) wrap.style.transition = "none";
+  el.dataset.open = "true";
+  el.dataset.revealed = "true";
+  if (btn) btn.setAttribute("aria-expanded", "true");
+  if (wrap) {
+    void wrap.offsetHeight;
+    wrap.style.transition = "";
+  }
+}
+
+/**
+ * Hook a settings section so clicking its summary toggles the
+ * data-open attribute, which the CSS uses to drive the
+ * grid-template-rows 0fr ↔ 1fr animation. Pure CSS animation; no
+ * height measurement, no display:none flicker.
+ *
+ * `data-revealed` is the "fully open AND animation settled" state.
+ * While the wrapper is transitioning we keep overflow:hidden on the
+ * body so child content gets clipped to the animated height; once the
+ * transition lands and the section is in its final open position, we
+ * flip [data-revealed=true] which lets internal popups escape the
+ * card bounds.
+ */
+function bindAccordion(section) {
+  if (!section || section.dataset.accordionWired === "1") return;
+  section.dataset.accordionWired = "1";
+  const btn = section.querySelector(".settings-summary");
+  const wrap = section.querySelector(".settings-body-wrap");
+  if (!btn || !wrap) return;
+
+  btn.addEventListener("click", () => {
+    const isOpen = section.dataset.open === "true";
+    if (isOpen) {
+      // Closing: drop the revealed flag first so overflow re-clips
+      // before grid-template-rows starts shrinking; otherwise content
+      // briefly overflows below the collapsing wrapper.
+      section.dataset.revealed = "false";
+      requestAnimationFrame(() => {
+        section.dataset.open = "false";
+        btn.setAttribute("aria-expanded", "false");
+      });
+    } else {
+      section.dataset.open = "true";
+      btn.setAttribute("aria-expanded", "true");
+    }
+  });
+
+  wrap.addEventListener("transitionend", (e) => {
+    if (e.propertyName !== "grid-template-rows") return;
+    if (section.dataset.open === "true") {
+      section.dataset.revealed = "true";
+    }
+  });
 }
 
 function bindSegGroup(id, key) {
@@ -259,6 +328,8 @@ function bindSegGroup(id, key) {
 }
 
 function bindHandlers() {
+  document.querySelectorAll(".settings-section[data-section]").forEach(bindAccordion);
+
   document.querySelectorAll("[data-theme-value]").forEach((btn) => {
     btn.addEventListener("click", () => setTheme(btn.dataset.themeValue));
   });

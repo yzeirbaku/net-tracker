@@ -65,12 +65,29 @@ body {
   min-height: 100vh;
 }
 
+/* Smooth theme toggle: fade surface/text/border colors when [data-theme]
+   flips. Uses a Material-style smoothing curve (slow start + slow end, with
+   most of the movement in the middle) over 380ms — long enough to read as
+   "deliberate", short enough to not feel sluggish. */
+body, header, .card, .settings-section, dialog, .toast,
+.seg-group, .dd-list {
+  transition: background-color 380ms cubic-bezier(0.4, 0, 0.2, 1),
+              color 380ms cubic-bezier(0.4, 0, 0.2, 1),
+              border-color 380ms cubic-bezier(0.4, 0, 0.2, 1),
+              box-shadow 380ms cubic-bezier(0.4, 0, 0.2, 1);
+}
+
 /* ---------- header ----------
    Sizes mirror gold-bar-tracker: header padding 1rem desktop / 0.7rem 1rem
    mobile, h1 1.3rem / 1.05rem, burger 46x46 desktop / 36x36 mobile with a
    bigger glyph on mobile to compensate for the smaller frame. */
+/* `align-items: flex-end` matches gold-bar-tracker. Bottom-aligning the
+   burger and the title makes the title's optical baseline land in the
+   same place as the burger's visual bottom. With `center`, the h1's
+   line-height adds descender space that pushes the visible glyphs
+   higher than the burger's center — looks misaligned on mobile. */
 header {
-  display: flex; align-items: center; gap: 0.5rem;
+  display: flex; align-items: flex-end; gap: 0.5rem;
   padding: 1rem;
   border-bottom: 1px solid var(--border);
   background: var(--surface);
@@ -78,8 +95,12 @@ header {
 }
 .menu-wrapper { flex: 0 0 auto; }
 .header-title {
-  display: flex; align-items: center;
+  display: flex; align-items: flex-end;
   flex: 1; min-width: 0;
+  /* Lift the title a touch so its visible glyphs settle against the
+     burger's optical bottom (not the line-height bottom). 0.5rem on
+     desktop where the h1 is bigger, 0.35rem on phones. */
+  padding-bottom: 0.5rem;
 }
 header h1 {
   margin: 0;
@@ -107,8 +128,9 @@ header h1 {
 #menu-btn { font-size: 1.25rem; }
 
 @media (max-width: 480px) {
-  header { padding: 0.7rem 1rem; }
+  header { padding: 0.7rem 1rem; gap: 0.15rem; }
   header h1 { font-size: 1.05rem; }
+  .header-title { padding-bottom: 0.35rem; }
   .icon-btn { width: 40px; height: 40px; font-size: 1.2rem; }
   #menu-btn { width: 36px; height: 36px; font-size: 1.55rem; }
 }
@@ -124,7 +146,9 @@ header h1 {
   z-index: 200;
   display: flex; flex-direction: column; gap: 0.35rem;
   transform: translateX(-100%);
-  transition: transform 0.22s ease;
+  transition: transform 0.22s ease,
+              background-color 380ms cubic-bezier(0.4, 0, 0.2, 1),
+              border-color 380ms cubic-bezier(0.4, 0, 0.2, 1);
   pointer-events: none;
 }
 .menu-dropdown.is-open { transform: translateX(0); pointer-events: auto; }
@@ -181,12 +205,9 @@ header h1 {
   transition: color 100ms ease;
 }
 .menu-icon svg {
-  width: 16px; height: 16px;
+  width: 14px; height: 14px;
   display: block;
 }
-/* Home and Budget get a slight visible bump. */
-.menu-item[data-action="home"] .menu-icon svg { width: 18px; height: 18px; }
-.menu-item[data-action="budget"] .menu-icon svg { width: 17px; height: 17px; }
 
 .menu-divider {
   margin-top: 0.5rem;
@@ -329,10 +350,14 @@ input:focus, textarea:focus {
   box-shadow: 0 0 0 3px var(--accent-glow);
 }
 @media (max-width: 599px) {
+  /* iOS Safari zooms the viewport when an input has font-size < 16px on focus.
+     16px is the minimum that prevents auto-zoom — we use it on mobile inputs
+     deliberately, accepting the slightly bigger glyph as the cost of not
+     having the page yank around when the keyboard opens. */
   input[type=text], input[type=email], input[type=number], textarea {
     min-height: 36px;
     padding: 0.5rem 0.7rem;
-    font-size: 0.9rem;
+    font-size: 16px;
   }
 }
 
@@ -416,7 +441,16 @@ label { display: block; font-size: 0.78rem; color: var(--muted); margin-bottom: 
   .dd-option { padding: 0.5rem 0.65rem; font-size: 0.88rem; }
 }
 
-/* ---------- settings sections (details/summary accordions) ---------- */
+/* ---------- settings sections (custom collapsibles) ----------
+   Native <details> can't animate the open/close transition smoothly:
+   when [open] is toggled, the browser flips body children from
+   display:none to visible instantly, which iOS Safari paints as a
+   visible flash. To get a buttery expand/collapse, we use a plain
+   <section> + <button> with a wrapper around the body. The wrapper is
+   a CSS grid whose `grid-template-rows` animates from 0fr → 1fr — the
+   modern "fully CSS, no JS measurement" expand pattern. Body content
+   is always rendered (never display:none), so there's nothing to
+   flash. */
 .settings-section {
   margin: 1rem;
   background: var(--surface);
@@ -425,34 +459,67 @@ label { display: block; font-size: 0.78rem; color: var(--muted); margin-bottom: 
   box-shadow: var(--shadow);
   overflow: hidden;
 }
-.settings-section > summary {
-  list-style: none;
+.settings-summary {
+  width: 100%;
+  background: transparent; border: 0;
   cursor: pointer;
   padding: 0.95rem 1.1rem;
   display: flex; align-items: center; justify-content: space-between;
-  font-weight: 600; font-size: 0.95rem;
+  font: inherit; font-weight: 600; font-size: 0.95rem;
+  color: var(--fg);
+  text-align: left;
   user-select: none;
+  transition: background 120ms ease;
 }
-.settings-section > summary::-webkit-details-marker { display: none; }
-.settings-section > summary::after {
+.settings-summary:focus-visible {
+  outline: 2px solid var(--accent-strong); outline-offset: -2px;
+}
+.settings-summary::after {
   content: "›";
   color: var(--muted);
   font-size: 1.3rem;
-  transition: transform 180ms ease;
   margin-left: 0.5rem;
+  transition: transform 360ms cubic-bezier(0.4, 0, 0.2, 1);
 }
-.settings-section[open] > summary::after { transform: rotate(90deg); }
-.settings-section > .settings-body {
-  padding: 0 1.1rem 1.1rem;
-  /* Reset overflow so dropdown popups can escape the accordion. */
-  overflow: visible;
+.settings-section[data-open="true"] > .settings-summary::after {
+  transform: rotate(90deg);
 }
 .settings-section .count {
   color: var(--muted); font-weight: 500; font-size: 0.85rem;
   margin-left: 0.5rem;
 }
-/* Need overflow visible on the parent for dropdown popups to escape. */
-.settings-section { overflow: visible; }
+
+/* The grid wrapper drives the height animation. minmax(0, 0fr) → (0, 1fr)
+   transitions smoothly; the explicit 0 minimum keeps Safari from
+   falling back to min-content sizing on the closed state. */
+.settings-section > .settings-body-wrap {
+  display: grid;
+  grid-template-rows: minmax(0, 0fr);
+  transition: grid-template-rows 360ms cubic-bezier(0.4, 0, 0.2, 1);
+}
+.settings-section[data-open="true"] > .settings-body-wrap {
+  grid-template-rows: minmax(0, 1fr);
+}
+/* min-height:0 lets the grid shrink past the item's intrinsic height,
+   overflow:hidden clips during the transition. Vertical padding is 0
+   when closed and animates to 1.1rem when open — otherwise the body's
+   bottom padding would keep the box ~17px tall even at 0fr and leak
+   the first row of content below the collapsed card. The padding
+   transition runs in lockstep with grid-template-rows so it reads as
+   one motion. */
+.settings-section > .settings-body-wrap > .settings-body {
+  min-height: 0;
+  overflow: hidden;
+  padding: 0 1.1rem;
+  transition: padding 360ms cubic-bezier(0.4, 0, 0.2, 1);
+}
+.settings-section[data-open="true"] > .settings-body-wrap > .settings-body {
+  padding: 0 1.1rem 1.1rem;
+}
+.settings-section[data-open="true"][data-revealed="true"]
+  > .settings-body-wrap > .settings-body {
+  overflow: visible;
+}
 
 .list-rows { list-style: none; padding: 0; margin: 0.5rem 0 0; }
 .list-rows li {
@@ -592,7 +659,11 @@ label { display: block; font-size: 0.78rem; color: var(--muted); margin-bottom: 
   border-radius: 10px;
   gap: 4px;
 }
+/* Active "pill" is painted via a ::before overlay so we can transition
+   opacity (background-image gradients are not directly transitionable). */
 .seg-group button {
+  position: relative;
+  isolation: isolate;
   flex: 1 1 auto;
   background: transparent; border: 0;
   color: var(--muted);
@@ -602,16 +673,24 @@ label { display: block; font-size: 0.78rem; color: var(--muted); margin-bottom: 
   cursor: pointer;
   white-space: nowrap;
   min-height: 32px;
-  transition: background 120ms ease, color 120ms ease;
+  transition: color 280ms cubic-bezier(0.4, 0, 0.2, 1);
 }
-.seg-group button:hover { color: var(--fg-soft); }
-.seg-group button.active {
+.seg-group button::before {
+  content: "";
+  position: absolute; inset: 0;
+  border-radius: inherit;
   background: linear-gradient(180deg, var(--accent-strong) 0%, var(--accent) 100%);
-  color: #ffffff;
   box-shadow:
     inset 0 1px 0 rgba(255, 255, 255, 0.12),
     0 1px 2px var(--accent-glow);
+  opacity: 0;
+  transition: opacity 280ms cubic-bezier(0.4, 0, 0.2, 1);
+  z-index: -1;
+  pointer-events: none;
 }
+.seg-group button:hover { color: var(--fg-soft); }
+.seg-group button.active { color: #ffffff; }
+.seg-group button.active::before { opacity: 1; }
 .seg-group.seg-pill { border-radius: 999px; }
 .seg-group.seg-pill button { border-radius: 999px; }
 
@@ -646,6 +725,13 @@ dialog menu button {
   background: var(--surface); color: var(--fg);
   cursor: pointer;
   transition: background 120ms ease, border-color 120ms ease, filter 120ms ease;
+}
+/* On phones, <dialog>.showModal() auto-focuses the first button (Cancel),
+   and browsers paint a focus ring even for touch — looks like a stuck hover.
+   Suppress the ring unless it's a real keyboard focus. */
+dialog menu button:focus { outline: none; }
+dialog menu button:focus-visible {
+  outline: 2px solid var(--accent-strong); outline-offset: 2px;
 }
 dialog menu button[value="save"] {
   background: linear-gradient(180deg, var(--accent-strong) 0%, var(--accent) 100%);
@@ -687,6 +773,12 @@ dialog menu button[value="save"].dialog-danger-confirm {
 }
 @media (min-width: 720px) {
   .card { padding: 1.25rem 1.4rem 1.4rem; }
-  .settings-section > summary { padding: 1.05rem 1.4rem; }
-  .settings-section > .settings-body { padding: 0 1.4rem 1.3rem; }
+  .settings-summary { padding: 1.05rem 1.4rem; }
+  .settings-section > .settings-body-wrap > .settings-body {
+    padding: 0 1.4rem;
+  }
+  .settings-section[data-open="true"]
+    > .settings-body-wrap > .settings-body {
+    padding: 0 1.4rem 1.3rem;
+  }
 }

@@ -78,6 +78,15 @@ def test_build_series_empty_when_no_history() -> None:
     assert series == []
 
 
+def test_build_series_entry_exactly_at_range_from() -> None:
+    """Boundary: an entry whose date == range_from is included via the prefix
+    point (compute_total_at uses <=) but is NOT in the change-dates set
+    (build_series uses strict > range_from)."""
+    entries = [E("a1", "Cash", "2026-01-10", "100")]
+    series = build_series(entries, range_from=date(2026, 1, 10), range_to=date(2026, 2, 10))
+    assert series == [{"date": date(2026, 1, 10), "total_dkk": Decimal("100")}]
+
+
 def test_build_deltas_basic() -> None:
     today = date(2026, 5, 1)
     entries = [

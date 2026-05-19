@@ -99,8 +99,13 @@ UPDATE accounts SET asset_class = NULL WHERE kind <> 'wealth';
 ALTER TABLE accounts ADD CONSTRAINT accounts_kind_check
     CHECK (kind IN ('spending', 'put_aside', 'wealth'));
 
+-- Intermediate constraint accepts both the old 'Gold' and the new 'Precious
+-- Metals' value so it doesn't block re-running the bootstrap on a DB that
+-- already migrated. The narrowing happens at the bottom of SCHEMA_SQL.
 ALTER TABLE accounts ADD CONSTRAINT accounts_asset_class_check CHECK (
-    asset_class IS NULL OR asset_class IN ('Cash', 'Stocks', 'Crypto', 'Gold', 'Pension', 'Other')
+    asset_class IS NULL OR asset_class IN (
+        'Cash', 'Stocks', 'Crypto', 'Gold', 'Precious Metals', 'Pension', 'Other'
+    )
 );
 
 -- Wealth accounts must have an asset_class; non-wealth must not.

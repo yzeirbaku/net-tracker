@@ -150,6 +150,83 @@ async def test_balance_entries_table_exists(
     assert "created_at" in names
 
 
+async def test_check_rejects_gold_after_migration(
+    client: AsyncClient,  # noqa: ARG001
+    authed_user: dict[str, str],
+) -> None:
+    """After SCHEMA_SQL runs, the asset_class CHECK no longer accepts 'Gold'."""
+    pool = db.pool()
+    user_id = uuid.UUID(authed_user["user_id"])
+
+    async with pool.acquire() as conn:
+        with pytest.raises(asyncpg.CheckViolationError):
+            await conn.execute(
+                "INSERT INTO accounts (user_id, name, kind, asset_class) "
+                "VALUES ($1, 'Vault', 'wealth', 'Gold')",
+                user_id,
+            )
+
+
+async def test_check_accepts_precious_metals_after_migration(
+    client: AsyncClient,  # noqa: ARG001
+    authed_user: dict[str, str],
+) -> None:
+    """The renamed value is accepted by the new CHECK constraint."""
+    pool = db.pool()
+    user_id = uuid.UUID(authed_user["user_id"])
+
+    async with pool.acquire() as conn:
+        await conn.execute(
+            "INSERT INTO accounts (user_id, name, kind, asset_class) "
+            "VALUES ($1, 'Vault', 'wealth', 'Precious Metals')",
+            user_id,
+        )
+        row = await conn.fetchrow(
+            "SELECT asset_class FROM accounts WHERE user_id = $1 AND name = 'Vault'",
+            user_id,
+        )
+    assert row is not None
+    assert row["asset_class"] == "Precious Metals"
+
+
+async def test_migration_retags_legacy_gold_rows(
+    client: AsyncClient,  # noqa: ARG001
+    authed_user: dict[str, str],
+) -> None:
+    """Round-trip the rename: seed a 'Gold' row under the OLD constraint shape,
+    then rerun SCHEMA_SQL and assert the row is retagged to 'Precious Metals'.
+    Mirrors how the migration will play out against an existing production DB."""
+    pool = db.pool()
+    user_id = uuid.UUID(authed_user["user_id"])
+
+    async with pool.acquire() as conn:
+        # Drop the new constraint, install the old one that allowed 'Gold',
+        # seed a row, then rerun the bootstrap (which drops the old and
+        # re-applies the new).
+        await conn.execute(
+            "ALTER TABLE accounts DROP CONSTRAINT IF EXISTS accounts_asset_class_check"
+        )
+        await conn.execute(
+            "ALTER TABLE accounts ADD CONSTRAINT accounts_asset_class_check CHECK ("
+            "asset_class IS NULL OR asset_class IN "
+            "('Cash', 'Stocks', 'Crypto', 'Gold', 'Pension', 'Other'))"
+        )
+        await conn.execute(
+            "INSERT INTO accounts (user_id, name, kind, asset_class) "
+            "VALUES ($1, 'Vault', 'wealth', 'Gold')",
+            user_id,
+        )
+
+        await conn.execute(db.SCHEMA_SQL)
+
+        row = await conn.fetchrow(
+            "SELECT asset_class FROM accounts WHERE user_id = $1 AND name = 'Vault'",
+            user_id,
+        )
+    assert row is not None
+    assert row["asset_class"] == "Precious Metals"
+
+
 async def test_balance_entries_unique_constraint(
     client: AsyncClient,  # noqa: ARG001
 ) -> None:

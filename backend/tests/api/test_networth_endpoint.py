@@ -122,6 +122,25 @@ async def test_networth_account_without_entries_listed_but_not_in_math(
     assert Decimal(body["composition"][0]["value_dkk"]) == Decimal("100")
 
 
+async def test_networth_composition_omits_class_with_only_empty_account(
+    client: AsyncClient, authed_user: dict[str, str]
+) -> None:
+    """A class containing only accounts-without-entries must not appear in
+    composition or contribute to the total. Pinned variant of the broader
+    'account without entries' test, focused on the composition side."""
+    cash = await _wealth(client, authed_user["token"], "Bank", "Cash")
+    await _wealth(client, authed_user["token"], "Vault", "Precious Metals")
+    today = date.today().isoformat()
+    await _balance(client, authed_user["token"], cash, today, "200")
+    r = await client.get("/networth", headers=_h(authed_user["token"]))
+    body = r.json()
+    assert [c["asset_class"] for c in body["composition"]] == ["Cash"]
+    assert Decimal(body["total_dkk"]) == Decimal("200")
+    # Vault still appears in `accounts` so it has an entry point — pinned.
+    names = {a["name"] for a in body["accounts"]}
+    assert names == {"Bank", "Vault"}
+
+
 async def test_networth_invalid_range(
     client: AsyncClient, authed_user: dict[str, str]
 ) -> None:

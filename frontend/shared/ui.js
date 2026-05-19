@@ -66,5 +66,13 @@ export function confirmPrompt({ title = "Confirm", message = "", okLabel = "Conf
     };
     dlg.addEventListener("close", onClose);
     dlg.showModal();
+    // showModal() auto-focuses Cancel (the first focusable). iOS Safari
+    // treats programmatic focus as `:focus-visible`, painting a ring
+    // that looks stuck. Blur it — the dialog itself remains modal so
+    // keyboard focus trap still works.
+    requestAnimationFrame(() => {
+      const active = document.activeElement;
+      if (active instanceof HTMLElement && dlg.contains(active)) active.blur();
+    });
   });
 }

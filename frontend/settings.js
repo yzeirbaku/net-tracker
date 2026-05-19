@@ -38,6 +38,8 @@ function setTheme(theme) {
   document.querySelectorAll("[data-theme-value]").forEach((btn) => {
     btn.classList.toggle("active", btn.dataset.themeValue === theme);
   });
+  const themeSeg = document.querySelector(".seg-group.seg-pill");
+  if (themeSeg) positionSegIndicator(themeSeg);
 }
 
 function initTheme() {
@@ -68,6 +70,16 @@ export async function renderSettings() {
   bindHandlers();
   syncAssetVisibility();
   syncColorPickerVisibility();
+  // Wait one frame so the freshly-inserted DOM has been laid out and
+  // offsetLeft/offsetWidth read correctly.
+  requestAnimationFrame(positionAllSegIndicators);
+}
+
+// Reposition all visible seg-indicators on viewport resize so the
+// pill stays under the active button when the row reflows.
+if (typeof window !== "undefined" && !window.__segResizeBound) {
+  window.__segResizeBound = true;
+  window.addEventListener("resize", () => positionAllSegIndicators());
 }
 
 function renderHtml() {
@@ -82,6 +94,7 @@ function renderHtml() {
     <div class="card">
       <h2>Theme</h2>
       <div class="seg-group seg-pill" role="radiogroup" aria-label="Theme">
+        <div class="seg-indicator"></div>
         <button type="button" data-theme-value="light" role="radio">Light</button>
         <button type="button" data-theme-value="dark" role="radio">Dark</button>
       </div>
@@ -156,6 +169,7 @@ function renderHtml() {
           <div class="field">
             <label>Kind</label>
             <div class="seg-group" id="acct-kind-seg" role="radiogroup" aria-label="Account kind">
+              <div class="seg-indicator"></div>
               ${ACCOUNT_KINDS.map(
                 (k) => `<button type="button" data-kind="${k.value}"${
                   k.value === state.pendingAcctKind ? ' class="active"' : ""
@@ -306,8 +320,46 @@ function bindAccordion(section) {
     if (e.propertyName !== "grid-template-rows") return;
     if (section.dataset.open === "true") {
       section.dataset.revealed = "true";
+      // The kind seg lives inside the Accounts accordion; its button
+      // offsets are 0 while the wrap is collapsed. Now that it's open,
+      // measure and slide the indicator into place.
+      section.querySelectorAll(".seg-group").forEach(positionSegIndicator);
     }
   });
+}
+
+/**
+ * Slide the green pill (the .seg-indicator) to the active button's
+ * position + width. Called on render, on every click, after the
+ * accordion that holds a seg-group opens, and on resize.
+ *
+ * When the seg-group is inside a closed accordion, offsets read as 0;
+ * skip the update and re-run after the accordion opens.
+ */
+function positionSegIndicator(group) {
+  if (!group) return;
+  const ind = group.querySelector(".seg-indicator");
+  const active = group.querySelector("button.active");
+  if (!ind || !active) return;
+  const w = active.offsetWidth;
+  if (w === 0) return;
+  // First positioning: suppress the transition so the indicator snaps
+  // into place under the active button instead of sliding in from the
+  // group's left edge. Subsequent calls (clicks, resize) keep the
+  // smooth slide.
+  const firstTime = !ind.classList.contains("is-ready");
+  if (firstTime) ind.style.transition = "none";
+  ind.style.transform = `translateX(${active.offsetLeft - 4}px)`;
+  ind.style.width = `${w}px`;
+  if (firstTime) {
+    void ind.offsetHeight;
+    ind.style.transition = "";
+    ind.classList.add("is-ready");
+  }
+}
+
+function positionAllSegIndicators() {
+  document.querySelectorAll(".seg-group").forEach(positionSegIndicator);
 }
 
 function bindSegGroup(id, key) {
@@ -324,6 +376,7 @@ function bindSegGroup(id, key) {
     seg.querySelectorAll("button").forEach((b) => {
       b.classList.toggle("active", b === btn);
     });
+    positionSegIndicator(seg);
   });
 }
 

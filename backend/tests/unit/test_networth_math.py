@@ -92,7 +92,7 @@ def test_build_deltas_basic() -> None:
     # 1Y anchor = today - 365d = 2025-05-01 → NW = 100. Today = 150 → delta = 50.
     assert by_period["1Y"]["delta_dkk"] == Decimal("50")
     assert by_period["1Y"]["is_since_start"] is False
-    # ALL → anchor = earliest entry = 2025-05-01 → NW(2025-05-01) = 100. delta = 50, since_start = True.
+    # ALL → anchor = earliest entry = 2025-05-01 → NW = 100. delta = 50, since_start = True.
     assert by_period["ALL"]["delta_dkk"] == Decimal("50")
     assert by_period["ALL"]["is_since_start"] is True
 

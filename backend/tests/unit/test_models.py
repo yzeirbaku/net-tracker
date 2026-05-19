@@ -1,12 +1,15 @@
-from datetime import UTC, datetime
+from datetime import UTC, date, datetime
+from decimal import Decimal
 from uuid import uuid4
 
 import pytest
+from pydantic import ValidationError
 
 from app.models import (
     AccountCreate,
     AccountKind,
     AssetClass,
+    BalanceEntryCreate,
     CategoryCreate,
     CategoryOut,
 )
@@ -86,14 +89,6 @@ def test_asset_class_enum_values() -> None:
 
 
 # ── Balance entry model tests ─────────────────────────────────────────────
-
-
-from datetime import date
-from decimal import Decimal
-
-from pydantic import ValidationError
-
-from app.models import BalanceEntryCreate
 
 
 def test_balance_entry_create_basic() -> None:

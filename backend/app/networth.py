@@ -16,6 +16,22 @@ from datetime import date as date_type
 from datetime import timedelta
 from decimal import Decimal
 from typing import Any
+from uuid import UUID
+
+from fastapi import APIRouter, Depends, HTTPException, Query
+
+from app import db
+from app.auth_session import require_session
+from app.models import (
+    NetWorthAccountSparkPoint,
+    NetWorthAccountSummary,
+    NetWorthCompositionSlice,
+    NetWorthDelta,
+    NetWorthOut,
+    NetWorthSeriesPoint,
+)
+
+router = APIRouter(prefix="/networth", tags=["networth"])
 
 _PERIOD_DAYS = {"1M": 30, "3M": 90, "6M": 180, "1Y": 365}
 
@@ -122,3 +138,83 @@ def build_composition(
         for cls, v in sorted(by_class.items(), key=lambda kv: -kv[1])
         if v > 0
     ]
+
+
+@router.get("", response_model=NetWorthOut)
+async def get_networth(
+    from_: date_type | None = Query(default=None, alias="from"),
+    to: date_type | None = Query(default=None),
+    session: dict[str, UUID] = Depends(require_session),
+) -> NetWorthOut:
+    today = date_type.today()
+    range_to = to or today
+    range_from = from_ or (today - timedelta(days=365))
+    if range_from > range_to:
+        raise HTTPException(status_code=400, detail="invalid_range")
+
+    pool = db.pool()
+    async with pool.acquire() as conn:
+        rows = await conn.fetch(
+            "SELECT be.account_id, a.asset_class, a.name AS account_name, "
+            "be.entry_date, be.value_dkk "
+            "FROM balance_entries be "
+            "JOIN accounts a ON a.id = be.account_id "
+            "WHERE a.user_id = $1 AND a.kind = 'wealth' "
+            "ORDER BY be.account_id, be.entry_date",
+            session["user_id"],
+        )
+
+    entries = [
+        {
+            "account_id": r["account_id"],
+            "asset_class": r["asset_class"],
+            "entry_date": r["entry_date"],
+            "value_dkk": r["value_dkk"],
+        }
+        for r in rows
+    ]
+
+    total = compute_total_at(entries, on=today)
+    series = build_series(entries, range_from=range_from, range_to=range_to)
+    deltas = build_deltas(entries, today=today)
+    composition = build_composition(entries, on=today)
+
+    by_account: dict[Any, list[dict[str, Any]]] = defaultdict(list)
+    for r in rows:
+        by_account[r["account_id"]].append(
+            {
+                "entry_date": r["entry_date"],
+                "value_dkk": r["value_dkk"],
+                "name": r["account_name"],
+                "asset_class": r["asset_class"],
+            }
+        )
+    accounts: list[NetWorthAccountSummary] = []
+    for aid, items in by_account.items():
+        items_sorted = sorted(items, key=lambda x: x["entry_date"])
+        latest_item = items_sorted[-1]
+        accounts.append(
+            NetWorthAccountSummary(
+                id=aid,
+                name=latest_item["name"],
+                asset_class=latest_item["asset_class"],
+                latest_value_dkk=latest_item["value_dkk"],
+                latest_entry_date=latest_item["entry_date"],
+                sparkline=[
+                    NetWorthAccountSparkPoint(
+                        date=i["entry_date"], value_dkk=i["value_dkk"]
+                    )
+                    for i in items_sorted
+                ],
+            )
+        )
+    accounts.sort(key=lambda a: (a.asset_class, a.name))
+
+    return NetWorthOut(
+        total_dkk=total,
+        as_of=today,
+        series=[NetWorthSeriesPoint(**p) for p in series],
+        deltas=[NetWorthDelta(**d) for d in deltas],
+        composition=[NetWorthCompositionSlice(**c) for c in composition],
+        accounts=accounts,
+    )

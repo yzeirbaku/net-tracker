@@ -227,6 +227,13 @@ function seriesValueForView(point) {
 function renderHtml() {
   const d = activeDelta();
   const hasHistory = state.series.length > 0;
+  // Multi-day history = at least one change-date strictly before today with a
+  // non-zero total. The backend always emits a 0-baseline prefix point at
+  // range_from when there's any data; on its own that doesn't constitute
+  // chartable history.
+  const hasMultiDayHistory = state.series.some(
+    (p) => p.date < state.as_of && Number(p.total_dkk) > 0,
+  );
   const hasPension = Number(state.pension_total_dkk) > 0;
   const haircutPct = Math.round(Number(state.pension_haircut_rate) * 100);
   const activeDeltaNum = d ? Number(activeDeltaValue(d)) : 0;
@@ -269,11 +276,15 @@ function renderHtml() {
         activeDeltaNum < 0 ? "networth-delta-neg" : "networth-delta-pos"
       }">${escapeHtml(deltaLabel)}</div>
     </div>
-    ${
-      hasHistory
-        ? `<div class="card"><div class="chart-container"><canvas id="networth-main-chart"></canvas></div></div>`
-        : `<div class="card"><p class="muted">No balances tracked yet. Your wealth accounts are listed below — tap <strong>Add</strong> on each one to record its current balance and start tracking.</p></div>`
-    }
+    ${(() => {
+      if (!hasHistory) {
+        return `<div class="card"><p class="muted">No balances tracked yet. Your wealth accounts are listed below — tap <strong>Add</strong> on each one to record its current balance and start tracking.</p></div>`;
+      }
+      if (!hasMultiDayHistory) {
+        return `<div class="card"><p class="muted">Your net-worth chart will start forming once you record balance entries on different dates. Come back after your next update.</p></div>`;
+      }
+      return `<div class="card"><div class="chart-container"><canvas id="networth-main-chart"></canvas></div></div>`;
+    })()}
     ${
       state.composition.length > 0
         ? `
@@ -576,18 +587,31 @@ function filterSeriesForPeriod(series, period) {
     const d = new Date(p.date);
     return d >= from && d <= to;
   });
-  if (inRange.length > 0) return inRange;
-  // No change-dates in this subrange — carry forward the latest pre-cutoff
-  // total so the chart renders as a flat step instead of a blank canvas.
   const prior = series.filter((p) => new Date(p.date) < from);
-  if (prior.length === 0) return [];
-  const lastTotal = prior[prior.length - 1].total_dkk;
   const fromIso = from.toISOString().slice(0, 10);
   const toIso = to.toISOString().slice(0, 10);
-  return [
-    { date: fromIso, total_dkk: lastTotal },
-    { date: toIso, total_dkk: lastTotal },
-  ];
+  if (inRange.length === 0) {
+    // No change-dates in this subrange. If there's prior history, render a
+    // flat step at the carry-forward total across the period.
+    if (prior.length === 0) return [];
+    const last = prior[prior.length - 1];
+    return [
+      { date: fromIso, total_dkk: last.total_dkk, liquid_dkk: last.liquid_dkk },
+      { date: toIso, total_dkk: last.total_dkk, liquid_dkk: last.liquid_dkk },
+    ];
+  }
+  // At least one in-range point. If there's prior history, prepend a
+  // synthesized prefix point at `from` carrying the pre-cutoff state — keeps
+  // the line anchored to the left edge of the chart instead of leaving a
+  // dead zone between `from` and the first change-date inside the subrange.
+  if (prior.length > 0) {
+    const last = prior[prior.length - 1];
+    return [
+      { date: fromIso, total_dkk: last.total_dkk, liquid_dkk: last.liquid_dkk },
+      ...inRange,
+    ];
+  }
+  return inRange;
 }
 
 function renderMainChart() {

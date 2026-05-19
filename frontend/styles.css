@@ -836,6 +836,18 @@ dialog menu button[value="save"].dialog-danger-confirm {
   max-width: 320px;
 }
 
+.networth-liquid {
+  font-size: 0.9rem;
+  color: var(--muted);
+  margin: -0.4rem 0 0.7rem;
+  cursor: help;
+}
+
+.networth-liquid strong {
+  color: var(--fg);
+  font-weight: 600;
+}
+
 .networth-delta {
   font-size: 0.95rem;
   font-weight: 500;
@@ -945,7 +957,6 @@ dialog menu button[value="save"].dialog-danger-confirm {
 }
 
 .networth-account-row:last-child { border-bottom: 0; }
-.networth-account-row:hover { background: rgba(255,255,255,0.02); }
 
 .networth-account-row-empty .networth-account-value { color: var(--muted); }
 .networth-account-row-empty .networth-account-meta { font-style: italic; }

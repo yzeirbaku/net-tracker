@@ -39,11 +39,45 @@ async def test_networth_empty(
     r = await client.get("/networth", headers=_h(authed_user["token"]))
     assert r.status_code == 200
     body = r.json()
-    assert body["total_dkk"] == "0"
+    assert Decimal(body["total_dkk"]) == Decimal("0")
+    assert Decimal(body["liquid_dkk"]) == Decimal("0")
+    assert Decimal(body["pension_total_dkk"]) == Decimal("0")
+    assert abs(body["pension_haircut_rate"] - 0.60) < 1e-9
     assert body["series"] == []
     assert body["composition"] == []
     assert body["accounts"] == []
     assert len(body["deltas"]) == 5
+
+
+async def test_networth_liquid_applies_pension_haircut(
+    client: AsyncClient, authed_user: dict[str, str]
+) -> None:
+    """100k cash + 100k pension → total=200k, liquid=140k (DK ~60% early-WD tax)."""
+    cash = await _wealth(client, authed_user["token"], "Bank", "Cash")
+    pension = await _wealth(client, authed_user["token"], "Velliv", "Pension")
+    today = date.today().isoformat()
+    await _balance(client, authed_user["token"], cash, today, "100000")
+    await _balance(client, authed_user["token"], pension, today, "100000")
+    r = await client.get("/networth", headers=_h(authed_user["token"]))
+    body = r.json()
+    assert Decimal(body["total_dkk"]) == Decimal("200000")
+    assert Decimal(body["liquid_dkk"]) == Decimal("140000")
+    assert Decimal(body["pension_total_dkk"]) == Decimal("100000")
+
+
+async def test_networth_liquid_equals_total_with_no_pension(
+    client: AsyncClient, authed_user: dict[str, str]
+) -> None:
+    cash = await _wealth(client, authed_user["token"], "Bank", "Cash")
+    stocks = await _wealth(client, authed_user["token"], "ISK", "Stocks")
+    today = date.today().isoformat()
+    await _balance(client, authed_user["token"], cash, today, "50000")
+    await _balance(client, authed_user["token"], stocks, today, "75000")
+    r = await client.get("/networth", headers=_h(authed_user["token"]))
+    body = r.json()
+    assert Decimal(body["total_dkk"]) == Decimal("125000")
+    assert Decimal(body["liquid_dkk"]) == Decimal("125000")
+    assert Decimal(body["pension_total_dkk"]) == Decimal("0")
 
 
 async def test_networth_single_entry(

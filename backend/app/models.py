@@ -194,6 +194,9 @@ class NetWorthAccountSummary(BaseModel):
 
 class NetWorthOut(BaseModel):
     total_dkk: Decimal
+    liquid_dkk: Decimal
+    pension_total_dkk: Decimal
+    pension_haircut_rate: float
     as_of: date
     series: list[NetWorthSeriesPoint]
     deltas: list[NetWorthDelta]

@@ -15,6 +15,7 @@ from app.networth import (
     build_composition,
     build_deltas,
     build_series,
+    compute_liquid_net_worth,
     compute_total_at,
     latest_per_account,
 )
@@ -149,3 +150,53 @@ def test_build_composition_hides_empty_classes() -> None:
     ]
     comp = build_composition(entries, on=date(2026, 1, 15))
     assert comp == []
+
+
+def test_compute_liquid_no_pension_equals_total() -> None:
+    """No pension holdings → liquid == total."""
+    entries = [
+        E("a1", "Cash", "2026-01-01", "100000"),
+        E("a2", "Stocks", "2026-01-01", "50000"),
+    ]
+    total, liquid = compute_liquid_net_worth(entries, on=date(2026, 2, 1))
+    assert total == Decimal("150000")
+    assert liquid == Decimal("150000")
+
+
+def test_compute_liquid_applies_60pct_pension_haircut() -> None:
+    """100k pension early-withdrawn ≈ 40k after the DK haircut, so a portfolio
+    of 100k cash + 100k pension reports total=200k, liquid=140k."""
+    entries = [
+        E("a1", "Cash", "2026-01-01", "100000"),
+        E("a2", "Pension", "2026-01-01", "100000"),
+    ]
+    total, liquid = compute_liquid_net_worth(entries, on=date(2026, 2, 1))
+    assert total == Decimal("200000")
+    assert liquid == Decimal("140000")
+
+
+def test_compute_liquid_multiple_pension_accounts() -> None:
+    """Haircut applies to the sum of all Pension accounts, not just one."""
+    entries = [
+        E("a1", "Pension", "2026-01-01", "60000"),
+        E("a2", "Pension", "2026-01-01", "40000"),
+        E("a3", "Cash", "2026-01-01", "50000"),
+    ]
+    total, liquid = compute_liquid_net_worth(entries, on=date(2026, 2, 1))
+    assert total == Decimal("150000")
+    # Pension subtotal = 100000; haircut = 60000; liquid = 150000 - 60000 = 90000.
+    assert liquid == Decimal("90000")
+
+
+def test_compute_liquid_only_pension() -> None:
+    """All-pension portfolio: liquid is 40% of total."""
+    entries = [E("a1", "Pension", "2026-01-01", "100000")]
+    total, liquid = compute_liquid_net_worth(entries, on=date(2026, 2, 1))
+    assert total == Decimal("100000")
+    assert liquid == Decimal("40000")
+
+
+def test_compute_liquid_no_entries() -> None:
+    total, liquid = compute_liquid_net_worth([], on=date(2026, 2, 1))
+    assert total == Decimal("0")
+    assert liquid == Decimal("0")

@@ -38,6 +38,29 @@ _PERIOD_DAYS = {"1M": 30, "3M": 90, "6M": 180, "1Y": 365}
 # Canonical display order for asset classes. Matches the spec's Net Worth view.
 _ASSET_CLASS_ORDER = ("Cash", "Stocks", "Crypto", "Precious Metals", "Pension", "Other")
 
+# DK rule of thumb: withdrawing pension before retirement age incurs ~60% in
+# combined income tax + state penalty. So the "liquid" (today-withdrawable)
+# value of any pension holding is the booked value minus this haircut. We
+# express it as a haircut so the math is `liquid = total - pension * RATE`.
+_PENSION_EARLY_WITHDRAWAL_PENALTY_RATE = Decimal("0.60")
+_PENSION_ASSET_CLASS = "Pension"
+
+
+def compute_liquid_net_worth(
+    entries: list[dict[str, Any]], on: date_type
+) -> tuple[Decimal, Decimal]:
+    """Return (total, liquid) where liquid applies the pension early-withdrawal
+    haircut to any holdings in the Pension asset class on `on`."""
+    latest = latest_per_account(entries, on_or_before=on)
+    total = Decimal("0")
+    pension_total = Decimal("0")
+    for value, asset_class in latest.values():
+        total += value
+        if asset_class == _PENSION_ASSET_CLASS:
+            pension_total += value
+    liquid = total - (pension_total * _PENSION_EARLY_WITHDRAWAL_PENALTY_RATE)
+    return total, liquid
+
 
 def latest_per_account(
     entries: list[dict[str, Any]],
@@ -182,7 +205,13 @@ async def get_networth(
         if r["entry_date"] is not None
     ]
 
-    total = compute_total_at(entries, on=today)
+    total, liquid = compute_liquid_net_worth(entries, on=today)
+    # Recompute pension subtotal for the response so the frontend can show
+    # the haircut breakdown if it wants.
+    pension_total = Decimal("0")
+    for value, asset_class in latest_per_account(entries, on_or_before=today).values():
+        if asset_class == _PENSION_ASSET_CLASS:
+            pension_total += value
     series = build_series(entries, range_from=range_from, range_to=range_to)
     deltas = build_deltas(entries, today=today)
     composition = build_composition(entries, on=today)
@@ -238,6 +267,9 @@ async def get_networth(
 
     return NetWorthOut(
         total_dkk=total,
+        liquid_dkk=liquid,
+        pension_total_dkk=pension_total,
+        pension_haircut_rate=float(_PENSION_EARLY_WITHDRAWAL_PENALTY_RATE),
         as_of=today,
         series=[NetWorthSeriesPoint(**p) for p in series],
         deltas=[NetWorthDelta(**d) for d in deltas],

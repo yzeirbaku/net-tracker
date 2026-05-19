@@ -17,6 +17,9 @@ const PERIODS = ["1M", "3M", "6M", "1Y", "ALL"];
 
 const state = {
   total_dkk: 0,
+  liquid_dkk: 0,
+  pension_total_dkk: 0,
+  pension_haircut_rate: 0.60,
   as_of: null,
   series: [],
   deltas: [],
@@ -172,6 +175,9 @@ export async function renderNetWorth() {
     return;
   }
   state.total_dkk = data.total_dkk;
+  state.liquid_dkk = data.liquid_dkk;
+  state.pension_total_dkk = data.pension_total_dkk;
+  state.pension_haircut_rate = data.pension_haircut_rate;
   state.as_of = data.as_of;
   state.series = data.series;
   state.deltas = data.deltas;
@@ -200,9 +206,17 @@ function renderHtml() {
     deltaLabel = `${prefix}${sign}${value}`;
   }
   const hasHistory = state.series.length > 0;
+  const hasPension = Number(state.pension_total_dkk) > 0;
+  const haircutPct = Math.round(Number(state.pension_haircut_rate) * 100);
+  const liquidLine = hasPension
+    ? `<div class="networth-liquid" title="Pension holdings haircut by ${haircutPct}% to reflect Danish early-withdrawal tax.">
+         Liquid: <strong>${fmtDKK(state.liquid_dkk)}</strong>
+       </div>`
+    : "";
   return `
     <div class="card networth-total-card">
       <div class="networth-total-value">${fmtDKK(state.total_dkk)}</div>
+      ${liquidLine}
       <div class="seg-group networth-period-pills" role="tablist">
         <span class="seg-indicator" aria-hidden="true"></span>
         ${PERIODS.map(

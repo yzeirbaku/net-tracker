@@ -55,3 +55,29 @@ async def upsert_balance_entry(
 
     response.status_code = 200 if existed else 201
     return BalanceEntryOut(**dict(row))
+
+
+@router.delete("/{account_id}/balance/{entry_id}", status_code=204)
+async def delete_balance_entry(
+    account_id: UUID,
+    entry_id: UUID,
+    session: dict[str, UUID] = Depends(require_session),
+) -> Response:
+    pool = db.pool()
+    async with pool.acquire() as conn:
+        # Verify the entry exists, belongs to this account, and the account
+        # belongs to this user. The row count tells us if anything matched.
+        result = await conn.execute(
+            "DELETE FROM balance_entries be "
+            "USING accounts a "
+            "WHERE be.id = $1 "
+            "AND be.account_id = $2 "
+            "AND be.account_id = a.id "
+            "AND a.user_id = $3",
+            entry_id,
+            account_id,
+            session["user_id"],
+        )
+    if result == "DELETE 0":
+        raise HTTPException(status_code=404, detail="not_found")
+    return Response(status_code=204)

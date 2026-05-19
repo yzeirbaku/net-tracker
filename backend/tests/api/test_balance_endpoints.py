@@ -125,3 +125,73 @@ async def test_post_balance_other_user_account_404(
         headers={"Authorization": f"Bearer {other_session}"},
     )
     assert r.status_code == 404
+
+
+async def test_delete_balance_entry(
+    client: AsyncClient, authed_user: dict[str, str]
+) -> None:
+    aid = await _create_wealth_account(client, authed_user["token"])
+    headers = _h(authed_user["token"])
+    created = await client.post(
+        f"/accounts/{aid}/balance",
+        json={"entry_date": "2026-01-01", "value_dkk": "100"},
+        headers=headers,
+    )
+    eid = created.json()["id"]
+    r = await client.delete(f"/accounts/{aid}/balance/{eid}", headers=headers)
+    assert r.status_code == 204
+
+
+async def test_delete_balance_entry_not_found(
+    client: AsyncClient, authed_user: dict[str, str]
+) -> None:
+    aid = await _create_wealth_account(client, authed_user["token"])
+    r = await client.delete(
+        f"/accounts/{aid}/balance/00000000-0000-0000-0000-000000000000",
+        headers=_h(authed_user["token"]),
+    )
+    assert r.status_code == 404
+
+
+async def test_delete_balance_entry_wrong_account(
+    client: AsyncClient, authed_user: dict[str, str]
+) -> None:
+    """Entry belongs to account A; DELETE under account B's URL → 404."""
+    headers = _h(authed_user["token"])
+    aid_a = await _create_wealth_account(client, authed_user["token"], name="A")
+    aid_b = await _create_wealth_account(client, authed_user["token"], name="B")
+    created = await client.post(
+        f"/accounts/{aid_a}/balance",
+        json={"entry_date": "2026-01-01", "value_dkk": "100"},
+        headers=headers,
+    )
+    eid = created.json()["id"]
+    r = await client.delete(f"/accounts/{aid_b}/balance/{eid}", headers=headers)
+    assert r.status_code == 404
+
+
+async def test_delete_balance_entry_other_user(
+    client: AsyncClient, authed_user: dict[str, str]
+) -> None:
+    aid = await _create_wealth_account(client, authed_user["token"])
+    created = await client.post(
+        f"/accounts/{aid}/balance",
+        json={"entry_date": "2026-01-01", "value_dkk": "100"},
+        headers=_h(authed_user["token"]),
+    )
+    eid = created.json()["id"]
+    from app import db
+
+    pool = db.pool()
+    async with pool.acquire() as conn:
+        other_user_id = await conn.fetchval(
+            "INSERT INTO users (email) VALUES ($1) RETURNING id", "other@x.com"
+        )
+        other_session = await conn.fetchval(
+            "INSERT INTO sessions (user_id) VALUES ($1) RETURNING id", other_user_id
+        )
+    r = await client.delete(
+        f"/accounts/{aid}/balance/{eid}",
+        headers={"Authorization": f"Bearer {other_session}"},
+    )
+    assert r.status_code == 404

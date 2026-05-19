@@ -895,7 +895,7 @@ dialog menu button[value="save"].dialog-danger-confirm {
 }
 
 .donut-legend-pct {
-  color: var(--text-muted);
+  color: var(--muted);
   min-width: 3.4em;
   text-align: right;
 }
@@ -912,7 +912,7 @@ dialog menu button[value="save"].dialog-danger-confirm {
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.04em;
-  color: var(--text-muted);
+  color: var(--muted);
   display: flex;
   align-items: center;
   gap: 0.5rem;
@@ -942,7 +942,7 @@ dialog menu button[value="save"].dialog-danger-confirm {
 .networth-account-row:hover { background: rgba(255,255,255,0.02); }
 
 .networth-account-name { font-weight: 500; }
-.networth-account-meta { font-size: 0.78rem; color: var(--text-muted); }
+.networth-account-meta { font-size: 0.78rem; color: var(--muted); }
 
 .networth-account-spark { color: var(--accent); opacity: 0.7; }
 .account-sparkline { display: block; width: 60px; height: 20px; }
@@ -993,7 +993,7 @@ dialog menu button[value="save"].dialog-danger-confirm {
 .ah-action-btn {
   background: transparent;
   border: 1px solid var(--border);
-  color: var(--text);
+  color: var(--fg);
   padding: 0.25rem 0.5rem;
   border-radius: 6px;
   cursor: pointer;

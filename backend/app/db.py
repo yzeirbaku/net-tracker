@@ -123,6 +123,21 @@ CREATE TABLE IF NOT EXISTS balance_entries (
 
 CREATE INDEX IF NOT EXISTS idx_balance_entries_account_date
     ON balance_entries(account_id, entry_date);
+
+-- 2026-05-19 migration: rename 'Gold' asset class to 'Precious Metals'.
+-- Same ordering trick as the earlier rename: drop the constraint first,
+-- update rows, then re-apply with the new vocabulary. DROP IF EXISTS makes
+-- this safe to run repeatedly on already-migrated databases.
+
+ALTER TABLE accounts DROP CONSTRAINT IF EXISTS accounts_asset_class_check;
+
+UPDATE accounts SET asset_class = 'Precious Metals' WHERE asset_class = 'Gold';
+
+ALTER TABLE accounts ADD CONSTRAINT accounts_asset_class_check CHECK (
+    asset_class IS NULL OR asset_class IN (
+        'Cash', 'Stocks', 'Crypto', 'Precious Metals', 'Pension', 'Other'
+    )
+);
 """
 
 

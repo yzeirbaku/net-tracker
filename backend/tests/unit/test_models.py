@@ -82,7 +82,7 @@ def test_asset_class_enum_values() -> None:
         "Cash",
         "Stocks",
         "Crypto",
-        "Gold",
+        "Precious Metals",
         "Pension",
         "Other",
     }

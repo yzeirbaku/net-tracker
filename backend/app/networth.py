@@ -36,7 +36,7 @@ router = APIRouter(prefix="/networth", tags=["networth"])
 _PERIOD_DAYS = {"1M": 30, "3M": 90, "6M": 180, "1Y": 365}
 
 # Canonical display order for asset classes. Matches the spec's Net Worth view.
-_ASSET_CLASS_ORDER = ("Cash", "Stocks", "Crypto", "Gold", "Pension", "Other")
+_ASSET_CLASS_ORDER = ("Cash", "Stocks", "Crypto", "Precious Metals", "Pension", "Other")
 
 
 def latest_per_account(

@@ -2,7 +2,7 @@ import { api } from "./shared/api.js";
 import { createDropdown } from "./shared/dropdown.js";
 import { confirmPrompt, escapeHtml, toast } from "./shared/ui.js";
 
-const ASSET_CLASSES = ["Cash", "Stocks", "Crypto", "Gold", "Pension", "Other"];
+const ASSET_CLASSES = ["Cash", "Stocks", "Crypto", "Precious Metals", "Pension", "Other"];
 const ACCOUNT_KINDS = [
   { value: "spending", label: "Spending" },
   { value: "put_aside", label: "Put-aside" },

@@ -21,7 +21,7 @@ class AssetClass(str, Enum):
     CASH = "Cash"
     STOCKS = "Stocks"
     CRYPTO = "Crypto"
-    GOLD = "Gold"
+    PRECIOUS_METALS = "Precious Metals"
     PENSION = "Pension"
     OTHER = "Other"
 

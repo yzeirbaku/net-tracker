@@ -15,7 +15,7 @@ The PWA has five top-level views in a side drawer (same shell pattern as gold-ba
 - **Home** — four at-a-glance cards: this month's budget remaining (with progress bar + days left), top 3 spending categories last 30 days, net-worth sparkline + delta vs last month, and a "review queue" card that only renders when uncategorized transactions are waiting. Each card taps through to its full view.
 - **Budget** — edit the persistent **ideal monthly budget template** (categories + planned amounts). For any month, **stamp template → month** to materialize that month's plan. Once stamped, the month is editable independently; re-stamping overwrites with confirmation. Manual checkoff of expenses; running "remaining" per category + per month.
 - **Spending** — retrospective analysis of imported bank CSVs. Per-account filter, transaction table, review queue for uncategorized rows, monthly averages over 1m/3m/6m/12m, per-category breakdown, reports. Put-aside accounts also show an envelope panel above the transaction table.
-- **Net Worth** — list of accounts grouped by asset class (Savings / Stocks / Crypto / Gold / Pension / Other). Each account has a history of `(date, balance)` entries; net-worth-over-time chart + period change (1M/3M/6M/1Y/all) + composition breakdown.
+- **Net Worth** — list of accounts grouped by asset class (Savings / Stocks / Crypto / Precious Metals / Pension / Other). Each account has a history of `(date, balance)` entries; net-worth-over-time chart + period change (1M/3M/6M/1Y/all) + composition breakdown.
 - **Settings** — sign in/out, light/dark toggle, manage categories, manage merchant rules, manage envelopes.
 
 The three subsystems share a global **category taxonomy** but otherwise own their data. Budget is manual planning + checkoff; Spending is the retrospective from imported CSVs; Net Worth is the savings/investments overview. They intentionally do *not* cross-couple at the transaction level — categorization in one does not flow to the other. Only categories are shared.
@@ -30,7 +30,7 @@ Three flavors on the `accounts` table (`kind` column):
 
 The distinction isn't "what's in the account" — it's "is this account wealth or money-in-transit?" Both `spending` and `put_aside` are working capital and exclude themselves from the net-worth calculation.
 
-`asset_class` is **only set on `wealth` accounts** and is NULL otherwise. It groups wealth accounts for the Net Worth view's composition donut. Values: `Cash` (bank savings), `Stocks` (brokerage), `Crypto`, `Gold`, `Pension`, `Other`. The DB enforces "asset_class IS NOT NULL iff kind = 'wealth'" via a CHECK constraint; Pydantic validates the same rule at the API boundary.
+`asset_class` is **only set on `wealth` accounts** and is NULL otherwise. It groups wealth accounts for the Net Worth view's composition donut. Values: `Cash` (bank savings), `Stocks` (brokerage), `Crypto`, `Precious Metals`, `Pension`, `Other`. The DB enforces "asset_class IS NOT NULL iff kind = 'wealth'" via a CHECK constraint; Pydantic validates the same rule at the API boundary.
 
 Same table for all three kinds; `kind` drives the UI and what fields apply. The Net Worth view (Plan 2) reads accounts where `kind = 'wealth'`. The CSV importer (Plan 4) only attaches to `spending` and `put_aside` accounts.
 
@@ -81,7 +81,7 @@ These two are independent — a transaction can be categorized normally but per-
 
 - **Source set**: only accounts where `kind = 'wealth'`. `spending` and `put_aside` balances are explicitly excluded — they're money-in-transit, not wealth.
 - **Balance entries** — `(account_id, date, value_dkk)`. Each manual update is a new row; system never overwrites. Net worth at any date = sum of latest `value_dkk` per wealth account on or before that date.
-- **Asset classes:** fixed set — Cash / Stocks / Crypto / Gold / Pension / Other. DKK only at MVP.
+- **Asset classes:** fixed set — Cash / Stocks / Crypto / Precious Metals / Pension / Other. DKK only at MVP.
 - **Charts:** total over time (sparkline + full chart with range pills 1M/3M/6M/1Y/all), composition pie/donut sliced by `asset_class`, per-account history.
 
 ## Put-aside (envelopes)

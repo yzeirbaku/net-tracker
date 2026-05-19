@@ -2,15 +2,15 @@ import { api } from "./shared/api.js";
 import { createDatePicker } from "./shared/datepicker.js";
 import { confirmPrompt, escapeHtml, toast } from "./shared/ui.js";
 
-const ASSET_CLASS_ORDER = ["Cash", "Stocks", "Crypto", "Gold", "Pension", "Other"];
+const ASSET_CLASS_ORDER = ["Cash", "Stocks", "Crypto", "Precious Metals", "Pension", "Other"];
 
 const ASSET_CLASS_COLORS = {
-  Cash:    "#64748b",
-  Stocks:  "#22c55e",
-  Crypto:  "#f59e0b",
-  Gold:    "#eab308",
-  Pension: "#8b5cf6",
-  Other:   "#94a3b8",
+  "Cash":             "#64748b",
+  "Stocks":           "#22c55e",
+  "Crypto":           "#f59e0b",
+  "Precious Metals":  "#eab308",
+  "Pension":          "#8b5cf6",
+  "Other":            "#94a3b8",
 };
 
 const PERIODS = ["1M", "3M", "6M", "1Y", "ALL"];

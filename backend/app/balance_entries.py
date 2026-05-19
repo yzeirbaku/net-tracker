@@ -9,7 +9,13 @@ from fastapi import APIRouter, Depends, HTTPException, Response
 
 from app import db
 from app.auth_session import require_session
-from app.models import BalanceEntryCreate, BalanceEntryOut
+from app.models import (
+    AccountHistoryAccountInfo,
+    AccountHistoryEntry,
+    AccountHistoryOut,
+    BalanceEntryCreate,
+    BalanceEntryOut,
+)
 
 router = APIRouter(prefix="/accounts", tags=["balance_entries"])
 
@@ -81,3 +87,31 @@ async def delete_balance_entry(
     if result == "DELETE 0":
         raise HTTPException(status_code=404, detail="not_found")
     return Response(status_code=204)
+
+
+@router.get("/{account_id}/history", response_model=AccountHistoryOut)
+async def get_account_history(
+    account_id: UUID,
+    session: dict[str, UUID] = Depends(require_session),
+) -> AccountHistoryOut:
+    pool = db.pool()
+    async with pool.acquire() as conn:
+        account = await conn.fetchrow(
+            "SELECT id, name, kind, asset_class "
+            "FROM accounts WHERE id = $1 AND user_id = $2",
+            account_id,
+            session["user_id"],
+        )
+        if account is None:
+            raise HTTPException(status_code=404, detail="not_found")
+
+        entries = await conn.fetch(
+            "SELECT id, entry_date, value_dkk, source "
+            "FROM balance_entries WHERE account_id = $1 "
+            "ORDER BY entry_date ASC",
+            account_id,
+        )
+    return AccountHistoryOut(
+        account=AccountHistoryAccountInfo(**dict(account)),
+        entries=[AccountHistoryEntry(**dict(r)) for r in entries],
+    )

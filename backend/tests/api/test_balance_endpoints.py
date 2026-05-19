@@ -195,3 +195,54 @@ async def test_delete_balance_entry_other_user(
         headers={"Authorization": f"Bearer {other_session}"},
     )
     assert r.status_code == 404
+
+
+async def test_get_history_empty(
+    client: AsyncClient, authed_user: dict[str, str]
+) -> None:
+    aid = await _create_wealth_account(client, authed_user["token"])
+    r = await client.get(f"/accounts/{aid}/history", headers=_h(authed_user["token"]))
+    assert r.status_code == 200
+    body = r.json()
+    assert body["account"]["id"] == aid
+    assert body["account"]["kind"] == "wealth"
+    assert body["account"]["asset_class"] == "Cash"
+    assert body["entries"] == []
+
+
+async def test_get_history_ascending(
+    client: AsyncClient, authed_user: dict[str, str]
+) -> None:
+    aid = await _create_wealth_account(client, authed_user["token"])
+    headers = _h(authed_user["token"])
+    # Insert out-of-order to make sure ORDER BY does the work.
+    for d, v in [("2026-03-01", "300"), ("2026-01-01", "100"), ("2026-02-01", "200")]:
+        await client.post(
+            f"/accounts/{aid}/balance",
+            json={"entry_date": d, "value_dkk": v},
+            headers=headers,
+        )
+    r = await client.get(f"/accounts/{aid}/history", headers=headers)
+    dates = [e["entry_date"] for e in r.json()["entries"]]
+    assert dates == ["2026-01-01", "2026-02-01", "2026-03-01"]
+
+
+async def test_get_history_account_not_found(
+    client: AsyncClient, authed_user: dict[str, str]
+) -> None:
+    r = await client.get(
+        "/accounts/00000000-0000-0000-0000-000000000000/history",
+        headers=_h(authed_user["token"]),
+    )
+    assert r.status_code == 404
+
+
+async def test_get_history_works_for_non_wealth(
+    client: AsyncClient, authed_user: dict[str, str]
+) -> None:
+    """History endpoint is read-only; spending/put_aside can have CSV-imported
+    rows in Plan 4. Reads must work regardless of kind."""
+    aid = await _create_spending_account(client, authed_user["token"])
+    r = await client.get(f"/accounts/{aid}/history", headers=_h(authed_user["token"]))
+    assert r.status_code == 200
+    assert r.json()["entries"] == []

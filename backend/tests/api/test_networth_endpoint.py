@@ -95,16 +95,31 @@ async def test_networth_composition_pcts_sum_to_one(
     assert abs(pct_sum - 1.0) < 1e-6
 
 
-async def test_networth_account_without_entries_omitted(
+async def test_networth_account_without_entries_listed_but_not_in_math(
     client: AsyncClient, authed_user: dict[str, str]
 ) -> None:
+    """Wealth accounts with no balance entries must still appear in `accounts`
+    so the user can add their first balance from the Net Worth view. They
+    contribute 0 to the total and don't appear in the composition donut.
+    """
     a = await _wealth(client, authed_user["token"], "With", "Cash")
     await _wealth(client, authed_user["token"], "Without", "Cash")
     today = date.today().isoformat()
     await _balance(client, authed_user["token"], a, today, "100")
     r = await client.get("/networth", headers=_h(authed_user["token"]))
     body = r.json()
-    assert [acct["name"] for acct in body["accounts"]] == ["With"]
+    # Both accounts listed (sorted by class then name → alphabetical inside Cash).
+    by_name = {acct["name"]: acct for acct in body["accounts"]}
+    assert set(by_name.keys()) == {"With", "Without"}
+    # The one without entries has null latest fields and an empty sparkline.
+    assert by_name["Without"]["latest_entry_date"] is None
+    assert by_name["Without"]["latest_value_dkk"] is None
+    assert by_name["Without"]["sparkline"] == []
+    # Math only sums the account with an entry.
+    assert Decimal(body["total_dkk"]) == Decimal("100")
+    # Donut still excludes the empty account.
+    assert [c["asset_class"] for c in body["composition"]] == ["Cash"]
+    assert Decimal(body["composition"][0]["value_dkk"]) == Decimal("100")
 
 
 async def test_networth_invalid_range(

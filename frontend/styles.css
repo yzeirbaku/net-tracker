@@ -941,6 +941,9 @@ dialog menu button[value="save"].dialog-danger-confirm {
 .networth-account-row:last-child { border-bottom: 0; }
 .networth-account-row:hover { background: rgba(255,255,255,0.02); }
 
+.networth-account-row-empty .networth-account-value { color: var(--muted); }
+.networth-account-row-empty .networth-account-meta { font-style: italic; }
+
 .networth-account-name { font-weight: 500; }
 .networth-account-meta { font-size: 0.78rem; color: var(--muted); }
 

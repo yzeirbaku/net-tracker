@@ -157,13 +157,17 @@ async def get_networth(
 
     pool = db.pool()
     async with pool.acquire() as conn:
+        # Pull every wealth account + every balance entry in one go via
+        # LEFT JOIN. Accounts without entries appear as rows with NULL
+        # entry_date / value_dkk so we can render an "Add first balance"
+        # row for them in the per-class section.
         rows = await conn.fetch(
-            "SELECT be.account_id, a.asset_class, a.name AS account_name, "
+            "SELECT a.id AS account_id, a.asset_class, a.name AS account_name, "
             "be.entry_date, be.value_dkk "
-            "FROM balance_entries be "
-            "JOIN accounts a ON a.id = be.account_id "
+            "FROM accounts a "
+            "LEFT JOIN balance_entries be ON be.account_id = a.id "
             "WHERE a.user_id = $1 AND a.kind = 'wealth' "
-            "ORDER BY be.account_id, be.entry_date",
+            "ORDER BY a.id, be.entry_date",
             session["user_id"],
         )
 
@@ -175,6 +179,7 @@ async def get_networth(
             "value_dkk": r["value_dkk"],
         }
         for r in rows
+        if r["entry_date"] is not None
     ]
 
     total = compute_total_at(entries, on=today)
@@ -182,27 +187,40 @@ async def get_networth(
     deltas = build_deltas(entries, today=today)
     composition = build_composition(entries, on=today)
 
-    by_account: dict[Any, list[dict[str, Any]]] = defaultdict(list)
+    # Group rows by account. An account with no entries shows up as a single
+    # row with entry_date IS NULL — keep it but emit a zero-length sparkline.
+    by_account: dict[Any, dict[str, Any]] = {}
     for r in rows:
-        by_account[r["account_id"]].append(
+        acct = by_account.setdefault(
+            r["account_id"],
             {
-                "entry_date": r["entry_date"],
-                "value_dkk": r["value_dkk"],
                 "name": r["account_name"],
                 "asset_class": r["asset_class"],
-            }
+                "entries": [],
+            },
         )
+        if r["entry_date"] is not None:
+            acct["entries"].append(
+                {"entry_date": r["entry_date"], "value_dkk": r["value_dkk"]}
+            )
+
     accounts: list[NetWorthAccountSummary] = []
-    for aid, items in by_account.items():
-        items_sorted = sorted(items, key=lambda x: x["entry_date"])
-        latest_item = items_sorted[-1]
+    for aid, acct in by_account.items():
+        items_sorted = sorted(acct["entries"], key=lambda x: x["entry_date"])
+        if items_sorted:
+            latest = items_sorted[-1]
+            latest_value: Decimal | None = latest["value_dkk"]
+            latest_date: Any = latest["entry_date"]
+        else:
+            latest_value = None
+            latest_date = None
         accounts.append(
             NetWorthAccountSummary(
                 id=aid,
-                name=latest_item["name"],
-                asset_class=latest_item["asset_class"],
-                latest_value_dkk=latest_item["value_dkk"],
-                latest_entry_date=latest_item["entry_date"],
+                name=acct["name"],
+                asset_class=acct["asset_class"],
+                latest_value_dkk=latest_value,
+                latest_entry_date=latest_date,
                 sparkline=[
                     NetWorthAccountSparkPoint(
                         date=i["entry_date"], value_dkk=i["value_dkk"]

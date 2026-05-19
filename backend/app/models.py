@@ -187,8 +187,8 @@ class NetWorthAccountSummary(BaseModel):
     id: UUID
     name: str
     asset_class: str
-    latest_value_dkk: Decimal
-    latest_entry_date: date
+    latest_value_dkk: Decimal | None
+    latest_entry_date: date | None
     sparkline: list[NetWorthAccountSparkPoint]
 
 

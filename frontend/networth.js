@@ -233,14 +233,14 @@ function renderHtml() {
             ${list
               .map(
                 (a) => `
-              <div class="networth-account-row" data-account-id="${a.id}">
+              <div class="networth-account-row${a.latest_entry_date ? "" : " networth-account-row-empty"}" data-account-id="${a.id}">
                 <div class="networth-account-main">
                   <div class="networth-account-name">${escapeHtml(a.name)}</div>
-                  <div class="networth-account-meta">as of ${fmtDate(a.latest_entry_date)}</div>
+                  <div class="networth-account-meta">${a.latest_entry_date ? `as of ${fmtDate(a.latest_entry_date)}` : "No balance yet"}</div>
                 </div>
                 <div class="networth-account-spark">${sparklineSvg(a.sparkline)}</div>
-                <div class="networth-account-value">${fmtDKK(a.latest_value_dkk)}</div>
-                <button class="btn-primary networth-update-btn" data-account-id="${a.id}" data-account-name="${escapeHtml(a.name)}" type="button">Update</button>
+                <div class="networth-account-value">${a.latest_value_dkk != null ? fmtDKK(a.latest_value_dkk) : "—"}</div>
+                <button class="btn-primary networth-update-btn" data-account-id="${a.id}" data-account-name="${escapeHtml(a.name)}" type="button">${a.latest_entry_date ? "Update" : "Add"}</button>
               </div>`,
               )
               .join("")}

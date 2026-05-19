@@ -7,6 +7,7 @@ import {
 } from "./shared/auth.js";
 import { closeDialog, openDialog, toast } from "./shared/ui.js";
 import { renderSettings } from "./settings.js";
+import { renderNetWorth } from "./networth.js";
 
 const VIEWS = ["home", "budget", "spending", "networth", "settings"];
 
@@ -22,6 +23,7 @@ function showView(name) {
     b.classList.toggle("active", b.dataset.action === name);
   });
   if (name === "settings") renderSettings();
+  if (name === "networth") renderNetWorth();
 }
 
 // ----- drawer -----

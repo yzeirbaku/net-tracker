@@ -52,16 +52,21 @@ export async function renderSettings() {
   initTheme();
   const root = document.getElementById("settings-root");
   if (!root) return;
-  // Show a loading card immediately so the page isn't empty while
-  // the API calls are in flight (esp. during Render cold-start).
-  root.innerHTML = `
-    <div class="card loading-card">
-      <div class="loading-row">
-        <span class="spinner" aria-hidden="true"></span>
-        <span>Loading settings…</span>
+  // Only paint the loading card on the FIRST render (root empty).
+  // Re-renders triggered by Add/Delete keep the current UI in place
+  // until the fresh fetch lands, so the page doesn't blink each time
+  // the user adds or removes a row.
+  const isInitial = !root.firstElementChild;
+  if (isInitial) {
+    root.innerHTML = `
+      <div class="card loading-card">
+        <div class="loading-row">
+          <span class="spinner" aria-hidden="true"></span>
+          <span>Loading settings…</span>
+        </div>
       </div>
-    </div>
-  `;
+    `;
+  }
   let me, cats, accts;
   try {
     [me, cats, accts] = await Promise.all([
@@ -70,11 +75,13 @@ export async function renderSettings() {
       api.get("/accounts"),
     ]);
   } catch {
-    root.innerHTML = `
-      <div class="card">
-        <p class="muted">Couldn't load settings. Try refreshing.</p>
-      </div>
-    `;
+    if (isInitial) {
+      root.innerHTML = `
+        <div class="card">
+          <p class="muted">Couldn't load settings. Try refreshing.</p>
+        </div>
+      `;
+    }
     return;
   }
   state.email = me.email;

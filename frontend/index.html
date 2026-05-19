@@ -8,7 +8,7 @@
   <meta name="theme-color" content="#0f1419" />
   <link rel="manifest" href="/manifest.webmanifest" />
   <link rel="apple-touch-icon" href="/icons/icon-192.png" />
-  <link rel="stylesheet" href="/styles.css?v=23" />
+  <link rel="stylesheet" href="/styles.css?v=24" />
   <title>Personal Finance Tracker</title>
   <script src="/config.js"></script>
 </head>
@@ -118,8 +118,8 @@
 
   <dialog id="balance-dialog">
     <h3 id="balance-dialog-title" style="margin-top:0">Update balance</h3>
-    <label for="balance-date">Date</label>
-    <input id="balance-date" type="date" />
+    <label>Date</label>
+    <div id="balance-date-mount"></div>
     <label for="balance-value">Value (DKK)</label>
     <input id="balance-value" type="text" inputmode="decimal" placeholder="e.g. 100000" />
     <p class="muted-tiny" id="balance-replace-hint" hidden>
@@ -145,7 +145,7 @@
   <div class="toast" id="toast"></div>
 
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
-  <script type="module" src="/app.js?v=20"></script>
+  <script type="module" src="/app.js?v=21"></script>
   <script>
     if ("serviceWorker" in navigator) {
       navigator.serviceWorker.register("/service-worker.js").catch(() => {});

@@ -1,4 +1,5 @@
 import { api } from "./shared/api.js";
+import { createDatePicker } from "./shared/datepicker.js";
 import { confirmPrompt, escapeHtml, toast } from "./shared/ui.js";
 
 const ASSET_CLASS_ORDER = ["Cash", "Stocks", "Crypto", "Gold", "Pension", "Other"];
@@ -32,6 +33,7 @@ const dialogState = {
   entryId: null,
   initialDate: null,
   initialValue: null,
+  datepicker: null,
 };
 
 function todayIso() {
@@ -50,11 +52,10 @@ async function openBalanceDialog({ accountId, accountName, entryId = null, date 
   dialogState.initialValue = value;
   const dlg = document.getElementById("balance-dialog");
   document.getElementById("balance-dialog-title").textContent = `Update balance — ${accountName}`;
-  const dateInput = document.getElementById("balance-date");
   const valueInput = document.getElementById("balance-value");
   const hint = document.getElementById("balance-replace-hint");
-  dateInput.value = dialogState.initialDate;
-  dateInput.max = todayIso();
+  dialogState.datepicker.setMax(todayIso());
+  dialogState.datepicker.setValue(dialogState.initialDate);
   valueInput.value = value != null ? String(value) : "";
   hint.hidden = true;
   if (!dlg.open) dlg.showModal();
@@ -62,12 +63,11 @@ async function openBalanceDialog({ accountId, accountName, entryId = null, date 
 }
 
 async function refreshReplaceHint() {
-  const dateInput = document.getElementById("balance-date");
   const hint = document.getElementById("balance-replace-hint");
-  if (!dialogState.accountId) { hint.hidden = true; return; }
+  if (!dialogState.accountId || !dialogState.datepicker) { hint.hidden = true; return; }
   try {
     const hist = await api.get(`/accounts/${dialogState.accountId}/history`);
-    const exists = hist.entries.some((e) => e.entry_date === dateInput.value);
+    const exists = hist.entries.some((e) => e.entry_date === dialogState.datepicker.getValue());
     hint.hidden = !exists;
   } catch {
     hint.hidden = true;
@@ -78,12 +78,19 @@ function bindBalanceDialogOnce() {
   const dlg = document.getElementById("balance-dialog");
   if (!dlg || dlg.dataset.wired === "1") return;
   dlg.dataset.wired = "1";
+  // Mount the custom date picker once; it's reused across opens via setValue/setMax.
+  const mount = document.getElementById("balance-date-mount");
+  dialogState.datepicker = createDatePicker({
+    value: todayIso(),
+    max: todayIso(),
+    onChange: () => refreshReplaceHint(),
+    ariaLabel: "Entry date",
+  });
+  mount.appendChild(dialogState.datepicker.element);
   document.getElementById("balance-cancel").addEventListener("click", () => dlg.close());
-  document.getElementById("balance-date").addEventListener("change", refreshReplaceHint);
   document.getElementById("balance-save").addEventListener("click", async () => {
-    const dateInput = document.getElementById("balance-date");
     const valueInput = document.getElementById("balance-value");
-    const date = dateInput.value;
+    const date = dialogState.datepicker.getValue();
     const raw = valueInput.value.trim().replace(",", ".");
     if (!date) { toast("Date required", "error"); return; }
     if (!raw) { toast("Value required", "error"); return; }

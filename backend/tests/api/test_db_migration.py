@@ -18,6 +18,8 @@ from __future__ import annotations
 
 import uuid
 
+import asyncpg
+import pytest
 from httpx import AsyncClient
 
 from app import db
@@ -127,3 +129,49 @@ async def test_migration_is_idempotent_on_new_shape_data(
         )
 
     assert [tuple(r) for r in before] == [tuple(r) for r in after]
+
+
+async def test_balance_entries_table_exists(
+    client: AsyncClient,  # noqa: ARG001
+) -> None:
+    """balance_entries table is created by SCHEMA_SQL bootstrap."""
+    pool = db.pool()
+    async with pool.acquire() as conn:
+        cols = await conn.fetch(
+            "SELECT column_name, data_type FROM information_schema.columns "
+            "WHERE table_name = 'balance_entries' ORDER BY ordinal_position"
+        )
+    names = [r["column_name"] for r in cols]
+    assert "id" in names
+    assert "account_id" in names
+    assert "entry_date" in names
+    assert "value_dkk" in names
+    assert "source" in names
+    assert "created_at" in names
+
+
+async def test_balance_entries_unique_constraint(
+    client: AsyncClient,  # noqa: ARG001
+) -> None:
+    """UNIQUE(account_id, entry_date) is enforced."""
+    pool = db.pool()
+    async with pool.acquire() as conn:
+        user_id = await conn.fetchval(
+            "INSERT INTO users (email) VALUES ($1) RETURNING id", "u@x.com"
+        )
+        account_id = await conn.fetchval(
+            "INSERT INTO accounts (user_id, name, kind, asset_class) "
+            "VALUES ($1, 'A', 'wealth', 'Cash') RETURNING id",
+            user_id,
+        )
+        await conn.execute(
+            "INSERT INTO balance_entries (account_id, entry_date, value_dkk, source) "
+            "VALUES ($1, '2026-01-01', 100, 'manual')",
+            account_id,
+        )
+        with pytest.raises(asyncpg.UniqueViolationError):
+            await conn.execute(
+                "INSERT INTO balance_entries (account_id, entry_date, value_dkk, source) "
+                "VALUES ($1, '2026-01-01', 200, 'manual')",
+                account_id,
+            )

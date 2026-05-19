@@ -108,6 +108,21 @@ ALTER TABLE accounts ADD CONSTRAINT accounts_asset_class_when_wealth CHECK (
     (kind = 'wealth' AND asset_class IS NOT NULL)
     OR (kind <> 'wealth' AND asset_class IS NULL)
 );
+
+CREATE TABLE IF NOT EXISTS balance_entries (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    account_id UUID NOT NULL REFERENCES accounts(id) ON DELETE CASCADE,
+    entry_date DATE NOT NULL,
+    value_dkk NUMERIC(14, 2) NOT NULL,
+    source TEXT NOT NULL DEFAULT 'manual',
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    UNIQUE (account_id, entry_date),
+    CONSTRAINT balance_entries_source_check
+        CHECK (source IN ('manual', 'csv_import'))
+);
+
+CREATE INDEX IF NOT EXISTS idx_balance_entries_account_date
+    ON balance_entries(account_id, entry_date);
 """
 
 

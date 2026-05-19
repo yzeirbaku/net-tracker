@@ -50,7 +50,7 @@ async def _db_per_test() -> AsyncIterator[None]:
     pool = db.pool()
     async with pool.acquire() as conn:
         await conn.execute(
-            "TRUNCATE accounts, categories, sessions, magic_links, users "
+            "TRUNCATE balance_entries, accounts, categories, sessions, magic_links, users "
             "RESTART IDENTITY CASCADE"
         )
     try:

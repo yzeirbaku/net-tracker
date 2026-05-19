@@ -713,6 +713,11 @@ dialog {
   max-width: 420px; width: 92%;
   padding: 1.25rem 1.25rem 1rem;
   box-shadow: var(--shadow-lg);
+  /* The custom date picker's calendar popup is position:absolute inside the
+     dialog. Without this, the popup forces dialog content to overflow and
+     paints a scrollbar. We keep dialogs short enough that visible overflow
+     isn't a content-clipping risk. */
+  overflow: visible;
 }
 dialog::backdrop { background: rgba(0, 0, 0, 0.55); }
 dialog h3 { margin-top: 0; }
@@ -929,7 +934,7 @@ dialog menu button[value="save"].dialog-danger-confirm {
 
 .networth-account-row {
   display: grid;
-  grid-template-columns: 1fr 60px auto auto;
+  grid-template-columns: 1fr auto auto;
   gap: 0.75rem;
   align-items: center;
   padding: 0.7rem 1rem;
@@ -947,9 +952,6 @@ dialog menu button[value="save"].dialog-danger-confirm {
 .networth-account-name { font-weight: 500; }
 .networth-account-meta { font-size: 0.78rem; color: var(--muted); }
 
-.networth-account-spark { color: var(--accent); opacity: 0.7; }
-.account-sparkline { display: block; width: 60px; height: 20px; }
-
 .networth-account-value {
   font-variant-numeric: tabular-nums;
   font-weight: 500;
@@ -962,13 +964,11 @@ dialog menu button[value="save"].dialog-danger-confirm {
     grid-template-columns: 1fr auto;
     grid-template-areas:
       "main  value"
-      "spark spark"
       "btn   btn";
     row-gap: 0.3rem;
   }
   .networth-account-main { grid-area: main; }
   .networth-account-value { grid-area: value; text-align: right; }
-  .networth-account-spark { grid-area: spark; justify-self: end; }
   .networth-update-btn { grid-area: btn; justify-self: start; margin-top: 0.4rem; }
 }
 

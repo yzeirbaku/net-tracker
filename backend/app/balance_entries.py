@@ -42,6 +42,17 @@ async def upsert_balance_entry(
         if account["kind"] != "wealth":
             raise HTTPException(status_code=400, detail="not_a_wealth_account")
 
+        # First entry defines the account's "starting point". Once it exists,
+        # nothing earlier may be inserted — so historical deltas always have
+        # a stable, user-defined anchor instead of shifting around as the
+        # earliest entry changes.
+        earliest = await conn.fetchval(
+            "SELECT MIN(entry_date) FROM balance_entries WHERE account_id = $1",
+            account_id,
+        )
+        if earliest is not None and payload.entry_date < earliest:
+            raise HTTPException(status_code=400, detail="before_earliest_entry")
+
         # `xmax = 0` on the returned row means it was just inserted; any
         # non-zero xmax means an update path ran. Lets us pick 201 vs 200
         # race-free in a single round-trip.

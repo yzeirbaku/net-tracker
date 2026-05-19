@@ -55,11 +55,25 @@ async function openBalanceDialog({ accountId, accountName, entryId = null, date 
   const valueInput = document.getElementById("balance-value");
   const hint = document.getElementById("balance-replace-hint");
   dialogState.datepicker.setMax(todayIso());
+  // Resolve min/replace state from history up front so the picker is fully
+  // configured before the dialog paints — avoids a flicker where the user
+  // could briefly pick a forbidden date.
+  let history = { entries: [] };
+  try {
+    history = await api.get(`/accounts/${dialogState.accountId}/history`);
+  } catch {
+    // Fall through; picker will just have no min lock.
+  }
+  const earliest =
+    history.entries.length > 0
+      ? history.entries.reduce((min, e) => (e.entry_date < min ? e.entry_date : min), history.entries[0].entry_date)
+      : null;
+  dialogState.datepicker.setMin(earliest);
   dialogState.datepicker.setValue(dialogState.initialDate);
   valueInput.value = value != null ? String(value) : "";
-  hint.hidden = true;
+  const exists = history.entries.some((e) => e.entry_date === dialogState.datepicker.getValue());
+  hint.hidden = !exists;
   if (!dlg.open) dlg.showModal();
-  await refreshReplaceHint();
 }
 
 async function refreshReplaceHint() {
@@ -172,7 +186,12 @@ function activeDelta() {
 function renderHtml() {
   const d = activeDelta();
   let deltaLabel = "";
-  if (state.deltas.length && d) {
+  // Suppress the delta label when there's nothing meaningful to compare:
+  //   - no entries at all, or
+  //   - the comparison anchor is today (single-day history, or pill range
+  //     entirely before any entry). In those cases "+0 since start" is just
+  //     noise.
+  if (state.deltas.length && d && d.anchor_date !== state.as_of) {
     const sign = Number(d.delta_dkk) >= 0 ? "+" : "−";
     const value = fmtDKK(Math.abs(Number(d.delta_dkk)));
     const prefix = d.is_since_start ? "since start: " : "";
@@ -245,7 +264,6 @@ function renderHtml() {
                   <div class="networth-account-name">${escapeHtml(a.name)}</div>
                   <div class="networth-account-meta">${a.latest_entry_date ? `as of ${fmtDate(a.latest_entry_date)}` : "No balance yet"}</div>
                 </div>
-                <div class="networth-account-spark">${sparklineSvg(a.sparkline)}</div>
                 <div class="networth-account-value">${a.latest_value_dkk != null ? fmtDKK(a.latest_value_dkk) : "—"}</div>
                 <button class="btn-primary networth-update-btn" data-account-id="${a.id}" data-account-name="${escapeHtml(a.name)}" type="button">${a.latest_entry_date ? "Update" : "Add"}</button>
               </div>`,
@@ -268,31 +286,6 @@ function accountsByClass() {
     grouped[a.asset_class].push(a);
   }
   return grouped;
-}
-
-function sparklineSvg(points) {
-  if (!points || points.length < 2) {
-    return `<svg class="account-sparkline" viewBox="0 0 60 20" aria-hidden="true"></svg>`;
-  }
-  const values = points.map((p) => Number(p.value_dkk));
-  const min = Math.min(...values);
-  const max = Math.max(...values);
-  const range = max - min || 1;
-  const W = 60;
-  const H = 20;
-  const step = W / (points.length - 1);
-  const coords = points
-    .map((p, i) => {
-      const x = (i * step).toFixed(2);
-      const y = (H - ((Number(p.value_dkk) - min) / range) * H).toFixed(2);
-      return `${x},${y}`;
-    })
-    .join(" ");
-  return `
-    <svg class="account-sparkline" viewBox="0 0 ${W} ${H}" aria-hidden="true">
-      <polyline points="${coords}" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round" stroke-linecap="round" />
-    </svg>
-  `;
 }
 
 function bindAccountRows(root) {

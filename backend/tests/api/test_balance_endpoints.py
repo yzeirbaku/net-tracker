@@ -85,6 +85,67 @@ async def test_post_balance_today_allowed(
     assert r.status_code == 201
 
 
+async def test_post_balance_before_earliest_rejected(
+    client: AsyncClient, authed_user: dict[str, str]
+) -> None:
+    """First entry sets the cutoff. Anything earlier is rejected."""
+    aid = await _create_wealth_account(client, authed_user["token"])
+    headers = _h(authed_user["token"])
+    r1 = await client.post(
+        f"/accounts/{aid}/balance",
+        json={"entry_date": "2026-03-01", "value_dkk": "100"},
+        headers=headers,
+    )
+    assert r1.status_code == 201
+    r2 = await client.post(
+        f"/accounts/{aid}/balance",
+        json={"entry_date": "2026-02-15", "value_dkk": "80"},
+        headers=headers,
+    )
+    assert r2.status_code == 400
+    assert r2.json()["detail"] == "before_earliest_entry"
+
+
+async def test_post_balance_on_earliest_allowed(
+    client: AsyncClient, authed_user: dict[str, str]
+) -> None:
+    """Re-posting on the earliest date is upsert, not 'before earliest'."""
+    aid = await _create_wealth_account(client, authed_user["token"])
+    headers = _h(authed_user["token"])
+    r1 = await client.post(
+        f"/accounts/{aid}/balance",
+        json={"entry_date": "2026-03-01", "value_dkk": "100"},
+        headers=headers,
+    )
+    assert r1.status_code == 201
+    r2 = await client.post(
+        f"/accounts/{aid}/balance",
+        json={"entry_date": "2026-03-01", "value_dkk": "120"},
+        headers=headers,
+    )
+    assert r2.status_code == 200
+    assert r2.json()["value_dkk"] == "120.00"
+
+
+async def test_post_balance_after_earliest_allowed(
+    client: AsyncClient, authed_user: dict[str, str]
+) -> None:
+    aid = await _create_wealth_account(client, authed_user["token"])
+    headers = _h(authed_user["token"])
+    r1 = await client.post(
+        f"/accounts/{aid}/balance",
+        json={"entry_date": "2026-01-01", "value_dkk": "100"},
+        headers=headers,
+    )
+    assert r1.status_code == 201
+    r2 = await client.post(
+        f"/accounts/{aid}/balance",
+        json={"entry_date": "2026-02-01", "value_dkk": "150"},
+        headers=headers,
+    )
+    assert r2.status_code == 201
+
+
 async def test_post_balance_upsert_same_date(
     client: AsyncClient, authed_user: dict[str, str]
 ) -> None:
@@ -215,8 +276,9 @@ async def test_get_history_ascending(
 ) -> None:
     aid = await _create_wealth_account(client, authed_user["token"])
     headers = _h(authed_user["token"])
-    # Insert out-of-order to make sure ORDER BY does the work.
-    for d, v in [("2026-03-01", "300"), ("2026-01-01", "100"), ("2026-02-01", "200")]:
+    # Insert chronologically (the API forbids inserting before the earliest
+    # existing entry), then assert the GET still orders the result ASC.
+    for d, v in [("2026-01-01", "100"), ("2026-02-01", "200"), ("2026-03-01", "300")]:
         await client.post(
             f"/accounts/{aid}/balance",
             json={"entry_date": d, "value_dkk": v},

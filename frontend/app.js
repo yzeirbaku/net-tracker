@@ -54,6 +54,10 @@ function bindDrawer() {
     if (!item) return;
     const action = item.dataset.action;
     setMenuOpen(false);
+    if (action === "signin") {
+      openDialog("login-dialog");
+      return;
+    }
     if (action === "signout") {
       try { await api.post("/auth/logout"); } catch { /* ignore */ }
       clearToken();
@@ -138,17 +142,26 @@ function bindLogin() {
   });
   $("#login-send").addEventListener("click", async (e) => {
     e.preventDefault();
+    const btn = e.currentTarget;
     const email = $("#login-email").value.trim();
     if (!email) {
       toast("Email required", "error");
       return;
     }
+    // Disable + label the button while the request is in flight so
+    // an impatient second tap doesn't fire a second magic-link email.
+    btn.disabled = true;
+    const originalLabel = btn.textContent;
+    btn.textContent = "Sending…";
     try {
       await api.post("/auth/request-link", { email });
       toast("Check your inbox for the sign-in link");
       closeDialog("login-dialog");
     } catch (err) {
       toast(`Could not send link: ${err.message}`, "error");
+    } finally {
+      btn.disabled = false;
+      btn.textContent = originalLabel;
     }
   });
 }
@@ -167,34 +180,62 @@ async function tryVerify() {
   }
 }
 
-async function refreshSignedInState() {
+/**
+ * Toggle visibility of the auth-gated menu items + home-view panels.
+ * Sign in shows only when signed out; Budget/Spending/Net Worth/
+ * Settings/Sign out only when signed in. Home stays visible either
+ * way.
+ */
+function applyAuthState(signedIn) {
+  const gated = ["budget", "spending", "networth", "settings", "signout"];
+  for (const action of gated) {
+    const el = document.querySelector(`.menu-item[data-action="${action}"]`);
+    if (el) el.hidden = !signedIn;
+  }
+  const signinItem = document.querySelector('.menu-item[data-action="signin"]');
+  if (signinItem) signinItem.hidden = signedIn;
+
+  const divider = document.querySelector(".menu-divider");
+  if (divider) divider.hidden = !signedIn;
   const accountInfo = $(".menu-account-info");
-  const signOutBtn = $('.menu-item[data-action="signout"]');
+  if (accountInfo) accountInfo.hidden = !signedIn;
+
+  $("#home-signed-in").hidden = !signedIn;
+  $("#home-signed-out").hidden = signedIn;
+}
+
+/**
+ * On boot: verify a magic-link token (if any in the URL), then ask
+ * the backend who we are. Only clear the local token on an explicit
+ * 401 (handled inside api.js). Transient errors — Render free-tier
+ * cold starts, flaky network — leave the token alone so a refresh
+ * later just works, instead of forcing a new magic-link email.
+ */
+async function refreshSignedInState() {
   if (!isSignedIn()) {
-    accountInfo.hidden = true;
-    signOutBtn.hidden = true;
-    openDialog("login-dialog");
+    applyAuthState(false);
     return null;
   }
   try {
     const me = await api.get("/auth/me");
-    accountInfo.textContent = `Signed in as ${me.email}`;
-    accountInfo.hidden = false;
-    signOutBtn.hidden = false;
+    $(".menu-account-info").textContent = `Signed in as ${me.email}`;
+    applyAuthState(true);
     return me;
-  } catch {
-    clearToken();
-    accountInfo.hidden = true;
-    signOutBtn.hidden = true;
-    openDialog("login-dialog");
+  } catch (err) {
+    if (err && err.message === "unauthorized") {
+      // api.js already cleared the token on 401.
+      applyAuthState(false);
+    } else {
+      // Transient — keep the token, optimistically render signed-in.
+      applyAuthState(true);
+    }
     return null;
   }
 }
 
 window.addEventListener("auth:signed-out", () => {
-  $(".menu-account-info").hidden = true;
-  $('.menu-item[data-action="signout"]').hidden = true;
-  openDialog("login-dialog");
+  applyAuthState(false);
+  showView("home");
 });
 
 async function main() {
@@ -204,7 +245,7 @@ async function main() {
   bindLogin();
   await tryVerify();
   await refreshSignedInState();
-  showView("settings");
+  showView("home");
 }
 
 main();

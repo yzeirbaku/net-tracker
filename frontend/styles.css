@@ -439,22 +439,17 @@ label { display: block; font-size: 0.78rem; color: var(--muted); margin-bottom: 
 }
 
 /* ---------- settings sections (custom collapsibles) ----------
-   Native <details> can't animate the open/close transition smoothly:
-   when [open] is toggled, the browser flips body children from
-   display:none to visible instantly, which iOS Safari paints as a
-   visible flash. To get a buttery expand/collapse, we use a plain
-   <section> + <button> with a wrapper around the body. The wrapper is
-   a CSS grid whose `grid-template-rows` animates from 0fr → 1fr — the
-   modern "fully CSS, no JS measurement" expand pattern. Body content
-   is always rendered (never display:none), so there's nothing to
-   flash. */
+   Open/close is intentionally instant — no animation. The wrap
+   toggles between height: 0 (closed) and height: auto (open) via
+   the [data-open] attribute. No JS measurement, no transitions.
+   The section itself is overflow: visible so the asset dropdown's
+   popup can extend below the card when the section is open. */
 .settings-section {
   margin: 1rem;
   background: var(--surface);
   border: 1px solid var(--border);
   border-radius: var(--radius);
   box-shadow: var(--shadow);
-  overflow: hidden;
 }
 .settings-summary {
   width: 100%;
@@ -480,7 +475,6 @@ label { display: block; font-size: 0.78rem; color: var(--muted); margin-bottom: 
   color: var(--muted);
   font-size: 1.3rem;
   margin-left: 0.5rem;
-  transition: transform 360ms cubic-bezier(0.4, 0, 0.2, 1);
 }
 .settings-section[data-open="true"] > .settings-summary::after {
   transform: rotate(90deg);
@@ -490,31 +484,19 @@ label { display: block; font-size: 0.78rem; color: var(--muted); margin-bottom: 
   margin-left: 0.5rem;
 }
 
-/* The wrap is a plain block with `overflow: hidden` and an animatable
-   height. Closed = height 0; opening = JS sets explicit height to the
-   measured scrollHeight, transition runs, then we clear back to auto
-   so future content changes (adding a row) don't need re-measurement.
-   Plain height transitions are much smoother than grid-template-rows
-   on mobile Safari because they don't trigger grid layout recompute
-   each frame. */
+/* Closed: height 0, overflow hidden (so nothing leaks below the card).
+   Open: height auto, overflow visible (so the asset dropdown popup
+   can extend below the section's bottom edge). */
 .settings-section > .settings-body-wrap {
   overflow: hidden;
   height: 0;
-  transition: height 260ms cubic-bezier(0.32, 0.72, 0, 1);
+}
+.settings-section[data-open="true"] > .settings-body-wrap {
+  height: auto;
+  overflow: visible;
 }
 .settings-section > .settings-body-wrap > .settings-body {
   padding: 0 1.1rem 1.1rem;
-}
-/* While the wrap is animating or fully open but not yet "revealed",
-   keep the body's overflow clipped so popups don't leak. Once the
-   open transition settles, JS flips [data-revealed=true] which lets
-   the asset dropdown / color picker escape the card bounds. */
-.settings-section > .settings-body-wrap > .settings-body {
-  overflow: hidden;
-}
-.settings-section[data-open="true"][data-revealed="true"]
-  > .settings-body-wrap > .settings-body {
-  overflow: visible;
 }
 
 .list-rows { list-style: none; padding: 0; margin: 0.5rem 0 0; }

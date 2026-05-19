@@ -254,82 +254,30 @@ function closeColorPopup() {
   trigger.setAttribute("aria-expanded", "false");
 }
 
-/**
- * Restore a section to its open state without animating (used after
- * re-renders, e.g. when the user adds a category and we re-fetch).
- * Suppresses the height transition, flips attributes, and sets the
- * wrap to `height: auto` so future content changes don't need
- * re-measurement.
- */
 function keepOpen(section) {
   const el = document.querySelector(`[data-section="${section}"]`);
   if (!el) return;
-  const wrap = el.querySelector(".settings-body-wrap");
-  const btn = el.querySelector(".settings-summary");
-  if (wrap) wrap.style.transition = "none";
   el.dataset.open = "true";
-  el.dataset.revealed = "true";
+  const btn = el.querySelector(".settings-summary");
   if (btn) btn.setAttribute("aria-expanded", "true");
-  if (wrap) {
-    wrap.style.height = "auto";
-    void wrap.offsetHeight;
-    wrap.style.transition = "";
-  }
 }
 
 /**
- * Animate the wrap's height between 0 and its measured scrollHeight.
- * Plain height transitions animate smoothly on iOS Safari (no grid
- * track recompute per frame). The body is always rendered, so
- * scrollHeight is reliable even when starting from height:0 — the
- * intrinsic size of the children isn't affected by `overflow: hidden`.
- *
- * Closing flow: read current scrollHeight, pin the wrap to that
- * explicit height, then on the next frame set it back to 0 so the
- * browser has two distinct values to transition between.
- *
- * Opening flow: pin to 0 (already there via CSS), set explicit
- * scrollHeight, transitionend → clear to `auto` so dynamic content
- * changes don't get trapped at a stale height.
+ * Instant open/close — no animation. Just toggles [data-open] on
+ * the section; CSS does the rest (height 0 ↔ auto). After opening,
+ * we re-position any seg-indicators inside, since their button
+ * offsets read as 0 while the wrap was collapsed.
  */
 function bindAccordion(section) {
   if (!section || section.dataset.accordionWired === "1") return;
   section.dataset.accordionWired = "1";
   const btn = section.querySelector(".settings-summary");
-  const wrap = section.querySelector(".settings-body-wrap");
-  if (!btn || !wrap) return;
-
+  if (!btn) return;
   btn.addEventListener("click", () => {
-    const isOpen = section.dataset.open === "true";
-    if (isOpen) {
-      // Closing: re-clip overflow first so popups don't trail outside
-      // the shrinking box; then pin the current natural height as
-      // explicit pixels and transition it to 0.
-      section.dataset.revealed = "false";
-      wrap.style.height = wrap.scrollHeight + "px";
-      requestAnimationFrame(() => {
-        wrap.style.height = "0px";
-        section.dataset.open = "false";
-        btn.setAttribute("aria-expanded", "false");
-      });
-    } else {
-      // Opening: from height:0, transition to the measured natural
-      // height. scrollHeight returns the unclipped intrinsic size.
-      section.dataset.open = "true";
-      btn.setAttribute("aria-expanded", "true");
-      wrap.style.height = wrap.scrollHeight + "px";
-    }
-  });
-
-  wrap.addEventListener("transitionend", (e) => {
-    if (e.propertyName !== "height") return;
-    if (section.dataset.open === "true") {
-      // Open + settled: let the wrap grow/shrink naturally from here.
-      wrap.style.height = "auto";
-      section.dataset.revealed = "true";
-      // The kind seg lives inside the Accounts accordion; its button
-      // offsets are 0 while the wrap is collapsed. Now that it's
-      // open, measure and slide the indicator into place.
+    const willOpen = section.dataset.open !== "true";
+    section.dataset.open = String(willOpen);
+    btn.setAttribute("aria-expanded", String(willOpen));
+    if (willOpen) {
       section.querySelectorAll(".seg-group").forEach(positionSegIndicator);
     }
   });
@@ -350,13 +298,15 @@ function positionSegIndicator(group) {
   if (!ind || !active) return;
   const w = active.offsetWidth;
   if (w === 0) return;
+  // offsetLeft is measured from the parent's padding edge, and our
+  // absolute-positioned indicator with `left: 0` aligns to that same
+  // padding edge — so translateX matches button.offsetLeft directly.
   // First positioning: suppress the transition so the indicator snaps
-  // into place under the active button instead of sliding in from the
-  // group's left edge. Subsequent calls (clicks, resize) keep the
-  // smooth slide.
+  // into place under the active button instead of sliding in from
+  // the group's left edge.
   const firstTime = !ind.classList.contains("is-ready");
   if (firstTime) ind.style.transition = "none";
-  ind.style.transform = `translateX(${active.offsetLeft - 4}px)`;
+  ind.style.transform = `translateX(${active.offsetLeft}px)`;
   ind.style.width = `${w}px`;
   if (firstTime) {
     void ind.offsetHeight;

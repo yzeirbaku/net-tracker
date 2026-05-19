@@ -80,9 +80,14 @@ These two are independent — a transaction can be categorized normally but per-
 ## Net Worth side
 
 - **Source set**: only accounts where `kind = 'wealth'`. `spending` and `put_aside` balances are explicitly excluded — they're money-in-transit, not wealth.
-- **Balance entries** — `(account_id, date, value_dkk)`. Each manual update is a new row; system never overwrites. Net worth at any date = sum of latest `value_dkk` per wealth account on or before that date.
-- **Asset classes:** fixed set — Cash / Stocks / Crypto / Precious Metals / Pension / Other. DKK only at MVP.
-- **Charts:** total over time (sparkline + full chart with range pills 1M/3M/6M/1Y/all), composition pie/donut sliced by `asset_class`, per-account history.
+- **Balance entries** — `(account_id, entry_date, value_dkk, source)` in the `balance_entries` table. Unique on `(account_id, entry_date)` so re-saving on the same date is an upsert. `source` is `'manual'` (Plan 2) or `'csv_import'` (Plan 4, ignored for net-worth math). Net worth at any date = sum of latest `value_dkk` per wealth account on or before that date.
+- **First-entry cutoff invariant.** Once an account has any balance entry, `POST /accounts/{id}/balance` rejects any `entry_date` earlier than the existing minimum with `400 before_earliest_entry`. The first entry locks the account's starting point so historical deltas have a stable, user-defined anchor instead of shifting as data is added retroactively. The frontend mirrors this by setting the date picker's `min` to the earliest entry on dialog open.
+- **Asset classes:** fixed set — Cash / Stocks / Crypto / Precious Metals / Pension / Other. DKK only at MVP. (Pre-rename label was "Gold"; the SCHEMA_SQL migration retags any existing `Gold` rows to `Precious Metals`.)
+- **Liquid net worth.** Pension holdings withdrawn before retirement age in Denmark take a ~60% combined-tax haircut, so the "liquid" figure is `total − pension_subtotal × 0.60`. The Net Worth view has a global **Total / Liquid** toggle (visible only when the portfolio contains pension holdings) that applies the haircut to the big number, the active period delta, the line chart (per-point — historical pension shifts are reflected), and the composition donut. The 60% rate lives as `_PENSION_EARLY_WITHDRAWAL_PENALTY_RATE` in `backend/app/networth.py`.
+- **`/networth` payload.** Composite response returns `total_dkk`, `liquid_dkk`, `pension_total_dkk`, `pension_haircut_rate`, a sparse stepped `series` of `{date, total_dkk, liquid_dkk}` points (prefix point at `range_from` + one per change-date inside the range), five `deltas` (1M / 3M / 6M / 1Y / ALL) each with `delta_dkk` and `delta_liquid_dkk` and a `since_start` clamp when the period would predate the earliest entry, a `composition` array sliced by asset_class, and an `accounts` array sorted by canonical asset-class order then name. Empty wealth accounts are included in `accounts` (so the user can add their first balance) but excluded from totals + composition.
+- **Charts:** total/liquid over time (Chart.js stepped area, range pills 1M/3M/6M/1Y/all), composition donut sliced by `asset_class`, per-account history dialog with edit (re-save on the same date) + delete (themed confirm).
+- **Chart library:** Chart.js v4.4.0 UMD pinned via CDN — matches gold-bar-tracker.
+- **Per-account history** dialog shows the entry list newest-first plus the Chart.js step chart oldest-first. The chart instance is destroyed on dialog `close` to avoid leaks.
 
 ## Put-aside (envelopes)
 
@@ -112,11 +117,13 @@ Magic-link rate limits and one-time SHA-256-hashed tokens follow the gold-bar-tr
 - Affirmative gets a subtle gradient + inset highlight + tiny colored glow (no halo). `dialog menu button[value="save"]` and `.btn-primary` paint affirmative; default neutral surface otherwise.
 - **Menu icons are inline SVG** (Lucide-style stroke icons), not unicode glyphs. Unicode chars had font-metric drift across systems (especially `⌂`); SVG gives pixel-exact sizing and clean alignment. Icon slot is a fixed `1.5rem × 1.5rem` flex box; SVG inside is 16px base with Home bumped to 18px and Budget to 17px.
 - **Header sizing copied from gold-bar verbatim:** desktop `padding: 1rem`, `h1 1.3rem`, burger 46×46 with 1.25rem glyph. Mobile (<480px): `padding: 0.7rem 1rem`, `h1 1.05rem`, burger 36×36 with 1.55rem glyph (smaller frame, beefier icon).
-- Header title: "Personal Finance Tracker" (green gradient). Drawer brand: "Net Tracker".
+- Header title: "Net Tracker" (green gradient). Drawer brand: "Net Tracker".
 - Date format site-wide: `DD-MM-YYYY` for dates, `DD-MM-YYYY HH:MM` for timestamps.
 - **Custom UI components:**
   - `frontend/shared/dropdown.js` — themed div-based dropdown with chevron, popup list, click-outside / Esc close, keyboard nav. Used wherever native `<select>` would leak browser-default option styling.
+  - `frontend/shared/datepicker.js` — themed calendar popup replacing the native `<input type="date">`. Monday-first weekdays, prev/next month nav, max/min bounds, Today shortcut. Keyboard nav inside the open grid (arrow keys ±1/±7 days, PageUp/Down ±1 month, Enter to commit). Used by the Net Worth balance dialog; reused by Plan 3's Budget month picker.
   - `frontend/shared/ui.js::confirmPrompt({title, message, okLabel, danger})` — themed `<dialog>` confirmation, returns `Promise<boolean>`. Replaces native `window.confirm`. `danger: true` paints the affirmative red.
+  - `frontend/shared/view-loading.js::paintViewLoading(rootEl, label) / paintViewError(rootEl, message)` — shared spinner-card pattern used by every view's render function. Painted on first visit so the page never sits blank during Render's free-tier cold-start. Skipped on re-renders (use `root.firstElementChild` as a "have we rendered before?" sentinel) so Add/Delete operations don't blink.
   - Category color picker (in `settings.js`) — compact circular trigger with "Pick a color" prompt; hidden until the category name input has text. Click → floating swatch popup (18 colors, 6-column grid).
 
 ## Conventions

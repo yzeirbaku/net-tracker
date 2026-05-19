@@ -49,17 +49,9 @@ _PENSION_ASSET_CLASS = "Pension"
 def compute_liquid_net_worth(
     entries: list[dict[str, Any]], on: date_type
 ) -> tuple[Decimal, Decimal]:
-    """Return (total, liquid) where liquid applies the pension early-withdrawal
-    haircut to any holdings in the Pension asset class on `on`."""
-    latest = latest_per_account(entries, on_or_before=on)
-    total = Decimal("0")
-    pension_total = Decimal("0")
-    for value, asset_class in latest.values():
-        total += value
-        if asset_class == _PENSION_ASSET_CLASS:
-            pension_total += value
-    liquid = total - (pension_total * _PENSION_EARLY_WITHDRAWAL_PENALTY_RATE)
-    return total, liquid
+    """Backwards-compatible alias of compute_total_and_liquid_at — original
+    name kept so older callers / tests don't break."""
+    return compute_total_and_liquid_at(entries, on=on)
 
 
 def latest_per_account(
@@ -88,38 +80,70 @@ def compute_total_at(entries: list[dict[str, Any]], on: date_type) -> Decimal:
     )
 
 
+def compute_total_and_liquid_at(
+    entries: list[dict[str, Any]], on: date_type
+) -> tuple[Decimal, Decimal]:
+    """Return (total, liquid) on date `on`. Liquid applies the pension haircut
+    to the pension subtotal as of that date — so historical series points
+    each reflect the haircut that was applicable then, not just today's."""
+    latest = latest_per_account(entries, on_or_before=on)
+    total = Decimal("0")
+    pension_total = Decimal("0")
+    for value, asset_class in latest.values():
+        total += value
+        if asset_class == _PENSION_ASSET_CLASS:
+            pension_total += value
+    liquid = total - (pension_total * _PENSION_EARLY_WITHDRAWAL_PENALTY_RATE)
+    return total, liquid
+
+
 def build_series(
     entries: list[dict[str, Any]],
     range_from: date_type,
     range_to: date_type,
 ) -> list[dict[str, Any]]:
-    """Sparse step-series of total over time.
+    """Sparse step-series of total + liquid over time.
 
     Emits one prefix point at `range_from` (carrying forward NW(range_from))
     plus one point per actual change-date inside (range_from, range_to].
-    Returns [] when there is no history at all.
+    Returns [] when there is no history at all. Each point carries both the
+    raw total and the liquid value (pension haircut applied as of that date).
     """
     if not entries:
         return []
     in_range = sorted(
         {e["entry_date"] for e in entries if range_from < e["entry_date"] <= range_to}
     )
-    prefix_total = compute_total_at(entries, on=range_from)
-    points: list[dict[str, Any]] = [{"date": range_from, "total_dkk": prefix_total}]
+    prefix_total, prefix_liquid = compute_total_and_liquid_at(entries, on=range_from)
+    points: list[dict[str, Any]] = [
+        {"date": range_from, "total_dkk": prefix_total, "liquid_dkk": prefix_liquid}
+    ]
     for d in in_range:
-        points.append({"date": d, "total_dkk": compute_total_at(entries, on=d)})
+        total_at, liquid_at = compute_total_and_liquid_at(entries, on=d)
+        points.append({"date": d, "total_dkk": total_at, "liquid_dkk": liquid_at})
     return points
 
 
 def build_deltas(entries: list[dict[str, Any]], today: date_type) -> list[dict[str, Any]]:
-    """Compute the 5 standard period deltas: 1M / 3M / 6M / 1Y / ALL."""
+    """Compute the 5 standard period deltas: 1M / 3M / 6M / 1Y / ALL.
+
+    Each entry carries both `delta_dkk` (against the raw total) and
+    `delta_liquid_dkk` (against the pension-haircut-adjusted total), so the
+    frontend can flip between the two without a refetch.
+    """
     if not entries:
         return [
-            {"period": p, "delta_dkk": Decimal("0"), "anchor_date": today, "is_since_start": False}
+            {
+                "period": p,
+                "delta_dkk": Decimal("0"),
+                "delta_liquid_dkk": Decimal("0"),
+                "anchor_date": today,
+                "is_since_start": False,
+            }
             for p in ("1M", "3M", "6M", "1Y", "ALL")
         ]
     earliest = min(e["entry_date"] for e in entries)
-    today_total = compute_total_at(entries, on=today)
+    today_total, today_liquid = compute_total_and_liquid_at(entries, on=today)
     out: list[dict[str, Any]] = []
     for period, days in _PERIOD_DAYS.items():
         anchor = today - timedelta(days=days)
@@ -128,19 +152,22 @@ def build_deltas(entries: list[dict[str, Any]], today: date_type) -> list[dict[s
             is_since_start = True
         else:
             is_since_start = False
-        anchor_total = compute_total_at(entries, on=anchor)
+        anchor_total, anchor_liquid = compute_total_and_liquid_at(entries, on=anchor)
         out.append(
             {
                 "period": period,
                 "delta_dkk": today_total - anchor_total,
+                "delta_liquid_dkk": today_liquid - anchor_liquid,
                 "anchor_date": anchor,
                 "is_since_start": is_since_start,
             }
         )
+    earliest_total, earliest_liquid = compute_total_and_liquid_at(entries, on=earliest)
     out.append(
         {
             "period": "ALL",
-            "delta_dkk": today_total - compute_total_at(entries, on=earliest),
+            "delta_dkk": today_total - earliest_total,
+            "delta_liquid_dkk": today_liquid - earliest_liquid,
             "anchor_date": earliest,
             "is_since_start": True,
         }

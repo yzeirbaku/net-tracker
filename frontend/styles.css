@@ -836,16 +836,16 @@ dialog menu button[value="save"].dialog-danger-confirm {
   max-width: 320px;
 }
 
-.networth-liquid {
-  font-size: 0.9rem;
-  color: var(--muted);
-  margin: -0.4rem 0 0.7rem;
+.networth-view-pills {
+  margin: 0 auto 0.9rem;
+  max-width: 220px;
+  padding: 3px;
   cursor: help;
 }
 
-.networth-liquid strong {
-  color: var(--fg);
-  font-weight: 600;
+.networth-view-pills button {
+  padding: 0.28rem 0.8rem;
+  font-size: 0.82rem;
 }
 
 .networth-delta {
@@ -887,26 +887,6 @@ dialog menu button[value="save"].dialog-danger-confirm {
   font-weight: 600;
 }
 
-.card-header-row {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 0.75rem;
-  margin-bottom: 0.75rem;
-}
-
-.card-header-row .card-title { margin: 0; }
-
-.networth-composition-pills {
-  /* Smaller than the period pills since this is a sub-toggle on a card. */
-  padding: 3px;
-  flex-shrink: 0;
-}
-
-.networth-composition-pills button {
-  padding: 0.25rem 0.7rem;
-  font-size: 0.78rem;
-}
 
 .donut-legend {
   list-style: none;

@@ -163,11 +163,13 @@ class BalanceEntryOut(BaseModel):
 class NetWorthSeriesPoint(BaseModel):
     date: date
     total_dkk: Decimal
+    liquid_dkk: Decimal
 
 
 class NetWorthDelta(BaseModel):
     period: str
     delta_dkk: Decimal
+    delta_liquid_dkk: Decimal
     anchor_date: date
     is_since_start: bool
 

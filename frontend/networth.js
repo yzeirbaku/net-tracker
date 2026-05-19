@@ -27,10 +27,11 @@ const state = {
   composition: [],
   accounts: [],
   activePeriod: "1M",
-  // 'total' = composition uses raw pension value; 'liquid' = pension slice
-  // reflects the early-withdrawal haircut. Toggle visible only when the
-  // portfolio contains pension holdings.
-  compositionView: "total",
+  // 'total' = raw numbers; 'liquid' = pension haircut applied everywhere on
+  // the page (top number, delta, chart, donut, composition legend). Toggle
+  // is visible at the top of the view, only when the portfolio actually
+  // contains pension holdings.
+  activeView: "total",
   mainChart: null,
   donutChart: null,
 };
@@ -190,7 +191,7 @@ function activeDelta() {
  * percentages are recomputed against the new total so they still sum to 1.
  */
 function compositionForView() {
-  if (state.compositionView === "total" || state.composition.length === 0) {
+  if (state.activeView === "total" || state.composition.length === 0) {
     return state.composition;
   }
   const haircut = Number(state.pension_haircut_rate);
@@ -206,32 +207,51 @@ function compositionForView() {
     .sort((a, b) => b.value_dkk - a.value_dkk);
 }
 
+function topTotalForView() {
+  return state.activeView === "liquid" ? state.liquid_dkk : state.total_dkk;
+}
+
+function activeDeltaValue(d) {
+  return state.activeView === "liquid" ? d.delta_liquid_dkk : d.delta_dkk;
+}
+
+function seriesValueForView(point) {
+  return state.activeView === "liquid" ? point.liquid_dkk : point.total_dkk;
+}
+
 function renderHtml() {
   const d = activeDelta();
-  let deltaLabel = "";
-  // Suppress the delta label when there's nothing meaningful to compare:
-  //   - no entries at all, or
-  //   - the comparison anchor is today (single-day history, or pill range
-  //     entirely before any entry). In those cases "+0 since start" is just
-  //     noise.
-  if (state.deltas.length && d && d.anchor_date !== state.as_of) {
-    const sign = Number(d.delta_dkk) >= 0 ? "+" : "−";
-    const value = fmtDKK(Math.abs(Number(d.delta_dkk)));
-    const prefix = d.is_since_start ? "since start: " : "";
-    deltaLabel = `${prefix}${sign}${value}`;
-  }
   const hasHistory = state.series.length > 0;
   const hasPension = Number(state.pension_total_dkk) > 0;
   const haircutPct = Math.round(Number(state.pension_haircut_rate) * 100);
-  const liquidLine = hasPension
-    ? `<div class="networth-liquid" title="Pension holdings haircut by ${haircutPct}% to reflect Danish early-withdrawal tax.">
-         Liquid: <strong>${fmtDKK(state.liquid_dkk)}</strong>
+  const activeDeltaNum = d ? Number(activeDeltaValue(d)) : 0;
+  let deltaLabel = "";
+  // Suppress the delta label when there's nothing meaningful to compare:
+  //   - no entries at all, or
+  //   - the comparison anchor is today (single-day history). "+0 since start"
+  //     is just noise in those cases.
+  if (state.deltas.length && d && d.anchor_date !== state.as_of) {
+    const sign = activeDeltaNum >= 0 ? "+" : "−";
+    const value = fmtDKK(Math.abs(activeDeltaNum));
+    const prefix = d.is_since_start ? "since start: " : "";
+    deltaLabel = `${prefix}${sign}${value}`;
+  }
+  const viewToggle = hasPension
+    ? `<div class="seg-group seg-pill networth-view-pills" role="tablist"
+            title="Liquid applies a ${haircutPct}% haircut to pension holdings, reflecting Danish early-withdrawal tax.">
+         <span class="seg-indicator" aria-hidden="true"></span>
+         <button type="button" data-view="total" class="${
+           state.activeView === "total" ? "active" : ""
+         }">Total</button>
+         <button type="button" data-view="liquid" class="${
+           state.activeView === "liquid" ? "active" : ""
+         }">Liquid</button>
        </div>`
     : "";
   return `
     <div class="card networth-total-card">
-      <div class="networth-total-value">${fmtDKK(state.total_dkk)}</div>
-      ${liquidLine}
+      ${viewToggle}
+      <div class="networth-total-value">${fmtDKK(topTotalForView())}</div>
       <div class="seg-group networth-period-pills" role="tablist">
         <span class="seg-indicator" aria-hidden="true"></span>
         ${PERIODS.map(
@@ -241,7 +261,7 @@ function renderHtml() {
         ).join("")}
       </div>
       <div class="networth-delta ${
-        d && Number(d.delta_dkk) < 0 ? "networth-delta-neg" : "networth-delta-pos"
+        activeDeltaNum < 0 ? "networth-delta-neg" : "networth-delta-pos"
       }">${escapeHtml(deltaLabel)}</div>
     </div>
     ${
@@ -253,22 +273,7 @@ function renderHtml() {
       state.composition.length > 0
         ? `
       <div class="card">
-        <div class="card-header-row">
-          <h3 class="card-title">Composition</h3>
-          ${
-            hasPension
-              ? `<div class="seg-group seg-pill networth-composition-pills" role="tablist">
-                   <span class="seg-indicator" aria-hidden="true"></span>
-                   <button type="button" data-comp-view="total" class="${
-                     state.compositionView === "total" ? "active" : ""
-                   }">Total</button>
-                   <button type="button" data-comp-view="liquid" class="${
-                     state.compositionView === "liquid" ? "active" : ""
-                   }">Liquid</button>
-                 </div>`
-              : ""
-          }
-        </div>
+        <h3 class="card-title">Composition</h3>
         <div class="chart-container chart-container-square">
           <canvas id="networth-donut-chart"></canvas>
         </div>
@@ -595,7 +600,7 @@ function renderMainChart() {
       labels: series.map((p) => p.date),
       datasets: [
         {
-          data: series.map((p) => Number(p.total_dkk)),
+          data: series.map((p) => Number(seriesValueForView(p))),
           borderColor: accent,
           backgroundColor: grad,
           fill: true,
@@ -656,10 +661,10 @@ function bindPeriodPills(root) {
   });
 }
 
-function bindCompositionPills(root) {
-  root.querySelectorAll(".networth-composition-pills button").forEach((btn) => {
+function bindViewPills(root) {
+  root.querySelectorAll(".networth-view-pills button").forEach((btn) => {
     btn.addEventListener("click", () => {
-      state.compositionView = btn.dataset.compView;
+      state.activeView = btn.dataset.view;
       root.innerHTML = renderHtml();
       afterRender(root);
     });
@@ -686,11 +691,11 @@ function positionSegIndicator(group) {
 
 function afterRender(root) {
   bindPeriodPills(root);
-  bindCompositionPills(root);
+  bindViewPills(root);
   const periodPills = root.querySelector(".networth-period-pills");
   if (periodPills) positionSegIndicator(periodPills);
-  const compPills = root.querySelector(".networth-composition-pills");
-  if (compPills) positionSegIndicator(compPills);
+  const viewPills = root.querySelector(".networth-view-pills");
+  if (viewPills) positionSegIndicator(viewPills);
   renderMainChart();
   renderDonut();
   bindAccountRows(root);

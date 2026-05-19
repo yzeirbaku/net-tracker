@@ -68,9 +68,10 @@ def test_build_series_sparse_with_prefix_point() -> None:
     ]
     series = build_series(entries, range_from=date(2026, 2, 1), range_to=date(2026, 3, 1))
     # Prefix point at 2026-02-01 carrying forward NW = 100, then 2026-02-15 → 150.
+    # No pension here, so liquid == total at every point.
     assert series == [
-        {"date": date(2026, 2, 1), "total_dkk": Decimal("100")},
-        {"date": date(2026, 2, 15), "total_dkk": Decimal("150")},
+        {"date": date(2026, 2, 1), "total_dkk": Decimal("100"), "liquid_dkk": Decimal("100")},
+        {"date": date(2026, 2, 15), "total_dkk": Decimal("150"), "liquid_dkk": Decimal("150")},
     ]
 
 
@@ -85,7 +86,24 @@ def test_build_series_entry_exactly_at_range_from() -> None:
     (build_series uses strict > range_from)."""
     entries = [E("a1", "Cash", "2026-01-10", "100")]
     series = build_series(entries, range_from=date(2026, 1, 10), range_to=date(2026, 2, 10))
-    assert series == [{"date": date(2026, 1, 10), "total_dkk": Decimal("100")}]
+    assert series == [
+        {"date": date(2026, 1, 10), "total_dkk": Decimal("100"), "liquid_dkk": Decimal("100")},
+    ]
+
+
+def test_build_series_carries_liquid_per_point() -> None:
+    """A pension entry mid-range should make its liquid value 40% of total at
+    that point AND going forward."""
+    entries = [
+        E("a1", "Cash", "2026-01-01", "100000"),
+        E("a2", "Pension", "2026-02-01", "100000"),
+    ]
+    series = build_series(entries, range_from=date(2026, 1, 1), range_to=date(2026, 3, 1))
+    assert series == [
+        {"date": date(2026, 1, 1), "total_dkk": Decimal("100000"), "liquid_dkk": Decimal("100000")},
+        # 2026-02-01: cash 100k + pension 100k = 200k total; liquid = 200k - 60k = 140k.
+        {"date": date(2026, 2, 1), "total_dkk": Decimal("200000"), "liquid_dkk": Decimal("140000")},
+    ]
 
 
 def test_build_deltas_basic() -> None:
@@ -98,13 +116,30 @@ def test_build_deltas_basic() -> None:
     by_period = {d["period"]: d for d in deltas}
     # 1M anchor = today - 30d = 2026-04-01 → NW = 150. Today NW = 150 → delta = 0.
     assert by_period["1M"]["delta_dkk"] == Decimal("0")
+    assert by_period["1M"]["delta_liquid_dkk"] == Decimal("0")
     assert by_period["1M"]["is_since_start"] is False
     # 1Y anchor = today - 365d = 2025-05-01 → NW = 100. Today = 150 → delta = 50.
     assert by_period["1Y"]["delta_dkk"] == Decimal("50")
+    assert by_period["1Y"]["delta_liquid_dkk"] == Decimal("50")
     assert by_period["1Y"]["is_since_start"] is False
     # ALL → anchor = earliest entry = 2025-05-01 → NW = 100. delta = 50, since_start = True.
     assert by_period["ALL"]["delta_dkk"] == Decimal("50")
+    assert by_period["ALL"]["delta_liquid_dkk"] == Decimal("50")
     assert by_period["ALL"]["is_since_start"] is True
+
+
+def test_build_deltas_liquid_diverges_with_pension() -> None:
+    """100k cash → today add 100k pension. ALL total-delta = +100k; liquid
+    delta = +40k (pension haircut applied to today, not to anchor)."""
+    today = date(2026, 5, 1)
+    entries = [
+        E("a1", "Cash", "2025-05-01", "100000"),
+        E("a2", "Pension", "2026-05-01", "100000"),
+    ]
+    deltas = build_deltas(entries, today=today)
+    by_period = {d["period"]: d for d in deltas}
+    assert by_period["ALL"]["delta_dkk"] == Decimal("100000")
+    assert by_period["ALL"]["delta_liquid_dkk"] == Decimal("40000")
 
 
 def test_build_deltas_range_exceeds_history() -> None:
@@ -125,6 +160,7 @@ def test_build_deltas_no_history_all_zeros() -> None:
     deltas = build_deltas([], today=today)
     for d in deltas:
         assert d["delta_dkk"] == Decimal("0")
+        assert d["delta_liquid_dkk"] == Decimal("0")
         assert d["is_since_start"] is False
         assert d["anchor_date"] == today
 

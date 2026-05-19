@@ -26,6 +26,90 @@ const state = {
   donutChart: null,
 };
 
+const dialogState = {
+  accountId: null,
+  accountName: null,
+  entryId: null,
+  initialDate: null,
+  initialValue: null,
+};
+
+function todayIso() {
+  const d = new Date();
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${y}-${m}-${day}`;
+}
+
+async function openBalanceDialog({ accountId, accountName, entryId = null, date = null, value = null }) {
+  dialogState.accountId = accountId;
+  dialogState.accountName = accountName;
+  dialogState.entryId = entryId;
+  dialogState.initialDate = date || todayIso();
+  dialogState.initialValue = value;
+  const dlg = document.getElementById("balance-dialog");
+  document.getElementById("balance-dialog-title").textContent = `Update balance — ${accountName}`;
+  const dateInput = document.getElementById("balance-date");
+  const valueInput = document.getElementById("balance-value");
+  const hint = document.getElementById("balance-replace-hint");
+  dateInput.value = dialogState.initialDate;
+  dateInput.max = todayIso();
+  valueInput.value = value != null ? String(value) : "";
+  hint.hidden = true;
+  if (!dlg.open) dlg.showModal();
+  await refreshReplaceHint();
+}
+
+async function refreshReplaceHint() {
+  const dateInput = document.getElementById("balance-date");
+  const hint = document.getElementById("balance-replace-hint");
+  if (!dialogState.accountId) { hint.hidden = true; return; }
+  try {
+    const hist = await api.get(`/accounts/${dialogState.accountId}/history`);
+    const exists = hist.entries.some((e) => e.entry_date === dateInput.value);
+    hint.hidden = !exists;
+  } catch {
+    hint.hidden = true;
+  }
+}
+
+function bindBalanceDialogOnce() {
+  const dlg = document.getElementById("balance-dialog");
+  if (!dlg || dlg.dataset.wired === "1") return;
+  dlg.dataset.wired = "1";
+  document.getElementById("balance-cancel").addEventListener("click", () => dlg.close());
+  document.getElementById("balance-date").addEventListener("change", refreshReplaceHint);
+  document.getElementById("balance-save").addEventListener("click", async () => {
+    const dateInput = document.getElementById("balance-date");
+    const valueInput = document.getElementById("balance-value");
+    const date = dateInput.value;
+    const raw = valueInput.value.trim().replace(",", ".");
+    if (!date) { toast("Date required", "error"); return; }
+    if (!raw) { toast("Value required", "error"); return; }
+    const num = Number(raw);
+    if (!Number.isFinite(num)) { toast("Value isn't a number", "error"); return; }
+    const btn = document.getElementById("balance-save");
+    btn.disabled = true;
+    const label = btn.textContent;
+    btn.textContent = "Saving…";
+    try {
+      await api.post(`/accounts/${dialogState.accountId}/balance`, {
+        entry_date: date,
+        value_dkk: raw,
+      });
+      dlg.close();
+      toast("Balance saved");
+      await renderNetWorth();
+    } catch (err) {
+      toast(`Couldn't save: ${err.message}`, "error");
+    } finally {
+      btn.disabled = false;
+      btn.textContent = label;
+    }
+  });
+}
+
 function fmtDKK(n) {
   const num = Number(n);
   return num.toLocaleString("de-DE", { maximumFractionDigits: 0 }) + " dkk";
@@ -38,6 +122,7 @@ function fmtDate(iso) {
 }
 
 export async function renderNetWorth() {
+  bindBalanceDialogOnce();
   const root = document.getElementById("networth-root");
   if (!root) return;
   const isInitial = !root.firstElementChild;
@@ -206,8 +291,10 @@ function bindAccountRows(root) {
   root.querySelectorAll(".networth-update-btn").forEach((btn) => {
     btn.addEventListener("click", (e) => {
       e.stopPropagation();
-      // Stub — replaced by Task 13.
-      toast(`Update ${btn.dataset.accountName} (wired in next task)`);
+      openBalanceDialog({
+        accountId: btn.dataset.accountId,
+        accountName: btn.dataset.accountName,
+      });
     });
   });
   root.querySelectorAll(".networth-account-row").forEach((row) => {

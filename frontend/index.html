@@ -8,7 +8,7 @@
   <meta name="theme-color" content="#0f1419" />
   <link rel="manifest" href="/manifest.webmanifest" />
   <link rel="apple-touch-icon" href="/icons/icon-192.png" />
-  <link rel="stylesheet" href="/styles.css?v=21" />
+  <link rel="stylesheet" href="/styles.css?v=22" />
   <title>Personal Finance Tracker</title>
   <script src="/config.js"></script>
 </head>
@@ -54,6 +54,15 @@
   <main>
     <section class="view" id="view-home" hidden>
       <h2 class="view-title">Home</h2>
+      <div class="card loading-card" id="home-loading" hidden>
+        <div class="loading-row">
+          <span class="spinner" aria-hidden="true"></span>
+          <span>Connecting…</span>
+        </div>
+        <p class="muted-tiny" id="home-loading-detail" hidden style="margin: 0.5rem 0 0">
+          The server is waking up — this can take up to 30 seconds.
+        </p>
+      </div>
       <div class="card" id="home-signed-out" hidden>
         <h3 style="margin-top:0">Welcome to Net Tracker</h3>
         <p class="muted">Please sign in to see your budget, spending, and net worth.</p>
@@ -111,7 +120,7 @@
 
   <div class="toast" id="toast"></div>
 
-  <script type="module" src="/app.js?v=17"></script>
+  <script type="module" src="/app.js?v=18"></script>
   <script>
     if ("serviceWorker" in navigator) {
       navigator.serviceWorker.register("/service-worker.js").catch(() => {});

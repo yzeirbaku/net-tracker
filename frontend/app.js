@@ -200,8 +200,29 @@ function applyAuthState(signedIn) {
   const accountInfo = $(".menu-account-info");
   if (accountInfo) accountInfo.hidden = !signedIn;
 
+  $("#home-loading").hidden = true;
   $("#home-signed-in").hidden = !signedIn;
   $("#home-signed-out").hidden = signedIn;
+}
+
+/**
+ * Show the "Connecting…" card while the boot /auth/me call is in
+ * flight. After ~2.5s reveals the "server waking up" hint so the
+ * user knows why it's slow rather than thinking the app is broken.
+ * Returns a cleanup function that hides the card.
+ */
+function showBootLoading() {
+  const loading = $("#home-loading");
+  const detail = $("#home-loading-detail");
+  loading.hidden = false;
+  $("#home-signed-in").hidden = true;
+  $("#home-signed-out").hidden = true;
+  detail.hidden = true;
+  const hintTimer = setTimeout(() => { detail.hidden = false; }, 2500);
+  return () => {
+    clearTimeout(hintTimer);
+    loading.hidden = true;
+  };
 }
 
 /**
@@ -216,6 +237,7 @@ async function refreshSignedInState() {
     applyAuthState(false);
     return null;
   }
+  const hideLoading = showBootLoading();
   try {
     const me = await api.get("/auth/me");
     $(".menu-account-info").textContent = `Signed in as ${me.email}`;
@@ -230,6 +252,8 @@ async function refreshSignedInState() {
       applyAuthState(true);
     }
     return null;
+  } finally {
+    hideLoading();
   }
 }
 

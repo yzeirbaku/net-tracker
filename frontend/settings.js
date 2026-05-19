@@ -52,18 +52,34 @@ export async function renderSettings() {
   initTheme();
   const root = document.getElementById("settings-root");
   if (!root) return;
+  // Show a loading card immediately so the page isn't empty while
+  // the API calls are in flight (esp. during Render cold-start).
+  root.innerHTML = `
+    <div class="card loading-card">
+      <div class="loading-row">
+        <span class="spinner" aria-hidden="true"></span>
+        <span>Loading settings…</span>
+      </div>
+    </div>
+  `;
+  let me, cats, accts;
   try {
-    const [me, cats, accts] = await Promise.all([
+    [me, cats, accts] = await Promise.all([
       api.get("/auth/me"),
       api.get("/categories"),
       api.get("/accounts"),
     ]);
-    state.email = me.email;
-    state.categories = cats;
-    state.accounts = accts;
   } catch {
+    root.innerHTML = `
+      <div class="card">
+        <p class="muted">Couldn't load settings. Try refreshing.</p>
+      </div>
+    `;
     return;
   }
+  state.email = me.email;
+  state.categories = cats;
+  state.accounts = accts;
   root.innerHTML = renderHtml();
   initTheme();
   mountDropdowns();
@@ -238,6 +254,17 @@ function syncColorPickerVisibility() {
   if (!hasName) closeColorPopup();
 }
 
+/**
+ * Disable an Add button while its name input is empty. Visual cue
+ * that the form isn't ready, plus stops accidental no-op submits.
+ */
+function syncAddButtonState(inputId, buttonId) {
+  const input = document.getElementById(inputId);
+  const btn = document.getElementById(buttonId);
+  if (!input || !btn) return;
+  btn.disabled = input.value.trim().length === 0;
+}
+
 function openColorPopup() {
   const popup = document.getElementById("cat-color-popup");
   const trigger = document.getElementById("cat-color-trigger");
@@ -344,11 +371,25 @@ function bindHandlers() {
     btn.addEventListener("click", () => setTheme(btn.dataset.themeValue));
   });
 
-  // Category name input controls color picker visibility
+  // Category name input controls color picker visibility AND the
+  // Add button's disabled state.
   const nameInput = document.getElementById("cat-name");
   if (nameInput) {
-    nameInput.addEventListener("input", syncColorPickerVisibility);
+    nameInput.addEventListener("input", () => {
+      syncColorPickerVisibility();
+      syncAddButtonState("cat-name", "cat-add");
+    });
   }
+  syncAddButtonState("cat-name", "cat-add");
+
+  // Account name input drives the Account Add button's disabled state.
+  const acctNameInput = document.getElementById("acct-name");
+  if (acctNameInput) {
+    acctNameInput.addEventListener("input", () => {
+      syncAddButtonState("acct-name", "acct-add");
+    });
+  }
+  syncAddButtonState("acct-name", "acct-add");
 
   // Color picker trigger toggles the popup
   const trigger = document.getElementById("cat-color-trigger");

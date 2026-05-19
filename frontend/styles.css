@@ -968,3 +968,41 @@ dialog menu button[value="save"].dialog-danger-confirm {
   .networth-account-spark { grid-area: spark; justify-self: end; }
   .networth-update-btn { grid-area: btn; justify-self: start; margin-top: 0.4rem; }
 }
+
+.ah-entry-list {
+  list-style: none;
+  margin: 1rem 0 0;
+  padding: 0;
+  max-height: 200px;
+  overflow-y: auto;
+}
+
+.ah-entry-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr auto auto;
+  gap: 0.6rem;
+  align-items: center;
+  padding: 0.5rem 0.25rem;
+  border-bottom: 1px solid rgba(255,255,255,0.05);
+  font-size: 0.92rem;
+}
+
+.ah-entry-date { font-variant-numeric: tabular-nums; }
+.ah-entry-value { font-variant-numeric: tabular-nums; text-align: right; }
+
+.ah-action-btn {
+  background: transparent;
+  border: 1px solid var(--border);
+  color: var(--text);
+  padding: 0.25rem 0.5rem;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 0.85rem;
+}
+
+.ah-action-btn:hover { background: rgba(255,255,255,0.05); }
+.ah-action-danger:hover { background: rgba(239,68,68,0.15); border-color: #ef4444; color: #ef4444; }
+
+.ah-empty { padding: 1rem 0; text-align: center; }
+
+#account-history-dialog { min-width: min(420px, 90vw); }

@@ -123,6 +123,7 @@ function fmtDate(iso) {
 
 export async function renderNetWorth() {
   bindBalanceDialogOnce();
+  bindHistoryDialogOnce();
   const root = document.getElementById("networth-root");
   if (!root) return;
   const isInitial = !root.firstElementChild;
@@ -299,9 +300,161 @@ function bindAccountRows(root) {
   });
   root.querySelectorAll(".networth-account-row").forEach((row) => {
     row.addEventListener("click", () => {
-      // Stub — replaced by Task 14.
-      toast(`History for account ${row.dataset.accountId} (wired in next task)`);
+      const acct = state.accounts.find((a) => a.id === row.dataset.accountId);
+      if (!acct) return;
+      openHistoryDialog(acct);
     });
+  });
+}
+
+const historyState = {
+  accountId: null,
+  accountName: null,
+  chart: null,
+  entries: [],
+};
+
+async function openHistoryDialog(account) {
+  historyState.accountId = account.id;
+  historyState.accountName = account.name;
+  const dlg = document.getElementById("account-history-dialog");
+  document.getElementById("ah-title").textContent = `${account.name} — history`;
+  if (!dlg.open) dlg.showModal();
+  await refreshHistoryDialog();
+}
+
+async function refreshHistoryDialog() {
+  let history;
+  try {
+    history = await api.get(`/accounts/${historyState.accountId}/history`);
+  } catch (err) {
+    toast(`Couldn't load history: ${err.message}`, "error");
+    return;
+  }
+  historyState.entries = history.entries;
+  renderHistoryChart();
+  renderHistoryList();
+}
+
+function renderHistoryChart() {
+  const canvas = document.getElementById("ah-chart");
+  if (!canvas || !window.Chart) return;
+  if (historyState.chart) {
+    historyState.chart.destroy();
+    historyState.chart = null;
+  }
+  if (historyState.entries.length === 0) return;
+  const accent = getComputedStyle(document.body).getPropertyValue("--accent").trim() || "#22c55e";
+  historyState.chart = new window.Chart(canvas.getContext("2d"), {
+    type: "line",
+    data: {
+      labels: historyState.entries.map((e) => e.entry_date),
+      datasets: [
+        {
+          data: historyState.entries.map((e) => Number(e.value_dkk)),
+          borderColor: accent,
+          backgroundColor: accent + "33",
+          fill: true,
+          stepped: "before",
+          pointRadius: 3,
+          borderWidth: 2,
+        },
+      ],
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: {
+        legend: { display: false },
+        tooltip: {
+          callbacks: {
+            title: (items) => fmtDate(items[0].label),
+            label: (item) => fmtDKK(item.parsed.y),
+          },
+        },
+      },
+      scales: {
+        x: {
+          ticks: {
+            callback: function (v) {
+              return fmtDate(this.getLabelForValue(v)).slice(0, 5);
+            },
+            maxRotation: 0,
+          },
+        },
+        y: {
+          ticks: {
+            callback: (v) => (Math.abs(v) >= 1e3 ? Math.round(v / 1e3) + "k" : v),
+          },
+        },
+      },
+    },
+  });
+}
+
+function renderHistoryList() {
+  const ul = document.getElementById("ah-entries");
+  if (!ul) return;
+  if (historyState.entries.length === 0) {
+    ul.innerHTML = `<li class="muted ah-empty">No entries yet.</li>`;
+    return;
+  }
+  const items = historyState.entries.slice().reverse();
+  ul.innerHTML = items
+    .map(
+      (e) => `
+      <li class="ah-entry-row">
+        <span class="ah-entry-date">${fmtDate(e.entry_date)}</span>
+        <span class="ah-entry-value">${fmtDKK(e.value_dkk)}</span>
+        <button class="ah-action-btn" data-action="edit" data-entry-id="${e.id}" data-date="${e.entry_date}" data-value="${e.value_dkk}" type="button" aria-label="Edit">✎</button>
+        <button class="ah-action-btn ah-action-danger" data-action="delete" data-entry-id="${e.id}" type="button" aria-label="Delete">✕</button>
+      </li>`,
+    )
+    .join("");
+  ul.querySelectorAll('button[data-action="edit"]').forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const dlg = document.getElementById("account-history-dialog");
+      dlg.close();
+      openBalanceDialog({
+        accountId: historyState.accountId,
+        accountName: historyState.accountName,
+        entryId: btn.dataset.entryId,
+        date: btn.dataset.date,
+        value: btn.dataset.value,
+      });
+    });
+  });
+  ul.querySelectorAll('button[data-action="delete"]').forEach((btn) => {
+    btn.addEventListener("click", async () => {
+      const ok = await confirmPrompt({
+        title: "Delete entry?",
+        message: "This balance entry will be permanently removed.",
+        okLabel: "Delete",
+        danger: true,
+      });
+      if (!ok) return;
+      try {
+        await api.delete(`/accounts/${historyState.accountId}/balance/${btn.dataset.entryId}`);
+        toast("Entry deleted");
+        await refreshHistoryDialog();
+        await renderNetWorth();
+      } catch (err) {
+        toast(`Couldn't delete: ${err.message}`, "error");
+      }
+    });
+  });
+}
+
+function bindHistoryDialogOnce() {
+  const dlg = document.getElementById("account-history-dialog");
+  if (!dlg || dlg.dataset.wired === "1") return;
+  dlg.dataset.wired = "1";
+  document.getElementById("ah-close").addEventListener("click", () => dlg.close());
+  dlg.addEventListener("close", () => {
+    if (historyState.chart) {
+      historyState.chart.destroy();
+      historyState.chart = null;
+    }
   });
 }
 

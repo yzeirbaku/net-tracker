@@ -6,8 +6,10 @@ import {
   setToken,
 } from "./shared/auth.js";
 import { closeDialog, openDialog, toast } from "./shared/ui.js";
-import { renderSettings } from "./settings.js";
+import { renderBudget } from "./budget.js";
 import { renderNetWorth } from "./networth.js";
+import { renderSettings } from "./settings.js";
+import { renderSpending } from "./spending.js";
 
 const VIEWS = ["home", "budget", "spending", "networth", "settings"];
 
@@ -24,6 +26,8 @@ function showView(name) {
   });
   if (name === "settings") renderSettings();
   if (name === "networth") renderNetWorth();
+  if (name === "budget") renderBudget();
+  if (name === "spending") renderSpending();
 }
 
 // ----- drawer -----

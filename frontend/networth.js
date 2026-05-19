@@ -1,6 +1,7 @@
 import { api } from "./shared/api.js";
 import { createDatePicker } from "./shared/datepicker.js";
 import { confirmPrompt, escapeHtml, toast } from "./shared/ui.js";
+import { paintViewError, paintViewLoading } from "./shared/view-loading.js";
 
 const ASSET_CLASS_ORDER = ["Cash", "Stocks", "Crypto", "Precious Metals", "Pension", "Other"];
 
@@ -26,6 +27,10 @@ const state = {
   composition: [],
   accounts: [],
   activePeriod: "1M",
+  // 'total' = composition uses raw pension value; 'liquid' = pension slice
+  // reflects the early-withdrawal haircut. Toggle visible only when the
+  // portfolio contains pension holdings.
+  compositionView: "total",
   mainChart: null,
   donutChart: null,
 };
@@ -153,25 +158,13 @@ export async function renderNetWorth() {
   const root = document.getElementById("networth-root");
   if (!root) return;
   const isInitial = !root.firstElementChild;
-  if (isInitial) {
-    root.innerHTML = `
-      <div class="card loading-card">
-        <div class="loading-row">
-          <span class="spinner" aria-hidden="true"></span>
-          <span>Loading net worth…</span>
-        </div>
-      </div>
-    `;
-  }
+  if (isInitial) paintViewLoading(root, "Loading net worth…");
   let data;
   try {
     data = await api.get("/networth");
   } catch (err) {
-    if (isInitial) {
-      root.innerHTML = `<div class="card"><p class="muted">Couldn't load net worth: ${escapeHtml(err.message)}</p></div>`;
-    } else {
-      toast(`Couldn't refresh: ${err.message}`, "error");
-    }
+    if (isInitial) paintViewError(root, `Couldn't load net worth: ${err.message}`);
+    else toast(`Couldn't refresh: ${err.message}`, "error");
     return;
   }
   state.total_dkk = data.total_dkk;
@@ -189,6 +182,28 @@ export async function renderNetWorth() {
 
 function activeDelta() {
   return state.deltas.find((d) => d.period === state.activePeriod) || null;
+}
+
+/**
+ * Composition slices for the currently-selected view ('total' or 'liquid').
+ * In 'liquid' mode the Pension slice is scaled down by the haircut rate;
+ * percentages are recomputed against the new total so they still sum to 1.
+ */
+function compositionForView() {
+  if (state.compositionView === "total" || state.composition.length === 0) {
+    return state.composition;
+  }
+  const haircut = Number(state.pension_haircut_rate);
+  const adjusted = state.composition.map((c) => {
+    const raw = Number(c.value_dkk);
+    const value = c.asset_class === "Pension" ? raw * (1 - haircut) : raw;
+    return { asset_class: c.asset_class, value_dkk: value };
+  });
+  const subtotal = adjusted.reduce((sum, c) => sum + c.value_dkk, 0);
+  if (subtotal === 0) return adjusted.map((c) => ({ ...c, pct: 0 }));
+  return adjusted
+    .map((c) => ({ ...c, pct: c.value_dkk / subtotal }))
+    .sort((a, b) => b.value_dkk - a.value_dkk);
 }
 
 function renderHtml() {
@@ -238,12 +253,27 @@ function renderHtml() {
       state.composition.length > 0
         ? `
       <div class="card">
-        <h3 class="card-title">Composition</h3>
+        <div class="card-header-row">
+          <h3 class="card-title">Composition</h3>
+          ${
+            hasPension
+              ? `<div class="seg-group seg-pill networth-composition-pills" role="tablist">
+                   <span class="seg-indicator" aria-hidden="true"></span>
+                   <button type="button" data-comp-view="total" class="${
+                     state.compositionView === "total" ? "active" : ""
+                   }">Total</button>
+                   <button type="button" data-comp-view="liquid" class="${
+                     state.compositionView === "liquid" ? "active" : ""
+                   }">Liquid</button>
+                 </div>`
+              : ""
+          }
+        </div>
         <div class="chart-container chart-container-square">
           <canvas id="networth-donut-chart"></canvas>
         </div>
         <ul class="donut-legend">
-          ${state.composition
+          ${compositionForView()
             .map(
               (c) => `
                 <li class="donut-legend-row">
@@ -480,14 +510,15 @@ function renderDonut() {
     state.donutChart.destroy();
     state.donutChart = null;
   }
+  const slices = compositionForView();
   state.donutChart = new window.Chart(canvas.getContext("2d"), {
     type: "doughnut",
     data: {
-      labels: state.composition.map((c) => c.asset_class),
+      labels: slices.map((c) => c.asset_class),
       datasets: [
         {
-          data: state.composition.map((c) => Number(c.value_dkk)),
-          backgroundColor: state.composition.map(
+          data: slices.map((c) => Number(c.value_dkk)),
+          backgroundColor: slices.map(
             (c) => ASSET_CLASS_COLORS[c.asset_class] || "#999",
           ),
           borderWidth: 0,
@@ -625,6 +656,16 @@ function bindPeriodPills(root) {
   });
 }
 
+function bindCompositionPills(root) {
+  root.querySelectorAll(".networth-composition-pills button").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      state.compositionView = btn.dataset.compView;
+      root.innerHTML = renderHtml();
+      afterRender(root);
+    });
+  });
+}
+
 function positionSegIndicator(group) {
   if (!group) return;
   const ind = group.querySelector(".seg-indicator");
@@ -645,8 +686,11 @@ function positionSegIndicator(group) {
 
 function afterRender(root) {
   bindPeriodPills(root);
-  const pills = root.querySelector(".networth-period-pills");
-  if (pills) positionSegIndicator(pills);
+  bindCompositionPills(root);
+  const periodPills = root.querySelector(".networth-period-pills");
+  if (periodPills) positionSegIndicator(periodPills);
+  const compPills = root.querySelector(".networth-composition-pills");
+  if (compPills) positionSegIndicator(compPills);
   renderMainChart();
   renderDonut();
   bindAccountRows(root);

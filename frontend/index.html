@@ -8,7 +8,7 @@
   <meta name="theme-color" content="#0f1419" />
   <link rel="manifest" href="/manifest.webmanifest" />
   <link rel="apple-touch-icon" href="/icons/icon-192.png" />
-  <link rel="stylesheet" href="/styles.css?v=26" />
+  <link rel="stylesheet" href="/styles.css?v=27" />
   <title>Personal Finance Tracker</title>
   <script src="/config.js"></script>
 </head>
@@ -74,15 +74,11 @@
     </section>
     <section class="view" id="view-budget" hidden>
       <h2 class="view-title">Budget</h2>
-      <div class="card">
-        <p class="muted">Template editor + monthly plan + ticks land here in a later plan.</p>
-      </div>
+      <div id="budget-root"></div>
     </section>
     <section class="view" id="view-spending" hidden>
       <h2 class="view-title">Spending</h2>
-      <div class="card">
-        <p class="muted">CSV import + review queue + monthly stacks land here in a later plan.</p>
-      </div>
+      <div id="spending-root"></div>
     </section>
     <section class="view" id="view-networth" hidden>
       <h2 class="view-title">Net Worth</h2>
@@ -145,7 +141,7 @@
   <div class="toast" id="toast"></div>
 
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
-  <script type="module" src="/app.js?v=23"></script>
+  <script type="module" src="/app.js?v=24"></script>
   <script>
     if ("serviceWorker" in navigator) {
       navigator.serviceWorker.register("/service-worker.js").catch(() => {});

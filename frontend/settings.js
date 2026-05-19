@@ -1,6 +1,7 @@
 import { api } from "./shared/api.js";
 import { createDropdown } from "./shared/dropdown.js";
 import { confirmPrompt, escapeHtml, toast } from "./shared/ui.js";
+import { paintViewError, paintViewLoading } from "./shared/view-loading.js";
 
 const ASSET_CLASSES = ["Cash", "Stocks", "Crypto", "Precious Metals", "Pension", "Other"];
 const ACCOUNT_KINDS = [
@@ -57,16 +58,7 @@ export async function renderSettings() {
   // until the fresh fetch lands, so the page doesn't blink each time
   // the user adds or removes a row.
   const isInitial = !root.firstElementChild;
-  if (isInitial) {
-    root.innerHTML = `
-      <div class="card loading-card">
-        <div class="loading-row">
-          <span class="spinner" aria-hidden="true"></span>
-          <span>Loading settings…</span>
-        </div>
-      </div>
-    `;
-  }
+  if (isInitial) paintViewLoading(root, "Loading settings…");
   let me, cats, accts;
   try {
     [me, cats, accts] = await Promise.all([
@@ -75,13 +67,7 @@ export async function renderSettings() {
       api.get("/accounts"),
     ]);
   } catch {
-    if (isInitial) {
-      root.innerHTML = `
-        <div class="card">
-          <p class="muted">Couldn't load settings. Try refreshing.</p>
-        </div>
-      `;
-    }
+    if (isInitial) paintViewError(root, "Couldn't load settings. Try refreshing.");
     return;
   }
   state.email = me.email;

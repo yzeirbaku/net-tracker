@@ -2,22 +2,29 @@
 
 Personal-finance PWA for managing a monthly budget, analyzing bank-export spending, and tracking net worth over time. Single-user, magic-link auth.
 
-**Status:** Plans 1 (foundation) + 2 (Net Worth) shipped. Budget and Spending pages are stubs awaiting Plans 3 & 4.
+**Status:** Plans 1 (foundation), 2 (Net Worth), 3 (Budget) shipped. Spending is still a stub awaiting Plan 4.
 
 See [CLAUDE.md](./CLAUDE.md) for the project overview.
 
 ## What's there today
 
 - Magic-link sign-in (Resend, opaque-bearer sessions in `localStorage`, 90-day sliding TTL).
-- Settings → accounts + categories CRUD.
+- Settings → accounts + categories CRUD with unique per-user color enforcement.
 - Net Worth view:
   - Per-account balance-entry history (manual, wealth-accounts only).
   - Total + composition donut by asset class (Cash / Stocks / Crypto / Precious Metals / Pension / Other).
   - Total net-worth chart over time (Chart.js stepped area), 1M / 3M / 6M / 1Y / ALL period pills with deltas.
   - Global **Total / Liquid** toggle that applies the Danish 60% pension early-withdrawal haircut to the top number, the chart, the period delta, and the composition donut.
   - "First entry is the cutoff" invariant — once an account has a balance entry, nothing earlier can be inserted.
-  - Custom themed date picker (Monday-first, keyboard nav, max/min bounds) replacing the native `<input type="date">`.
-- Loading-card spinner on every view so the page is never blank while the backend cold-starts.
+- Budget view:
+  - Persistent template (one editable draft + N labelled read-only snapshots / "versions" of past template states).
+  - Monthly plans stamped from the current draft as deep-copies — edits to the template never bleed back into a stamped month, and vice versa.
+  - Items inside each category with a tick lifecycle: `planned_dkk` + `remaining_dkk` + `ticked_at`. Tick zeroes remaining; untick restores; partial-pay flow auto-ticks when remaining hits zero.
+  - Past months can't be stamped (current calendar month + future only).
+  - Archive locks a month read-only; unlock with one click in the Archive view.
+  - Multi-select category picker shared between month + template flows.
+- Custom themed primitives (Monday-first day picker, month picker, popup color picker with auto-disabled taken hues, themed checkboxes, dialogs, dropdowns).
+- Loading-card spinner with a unified "Connecting…" message on every view so the page is never blank while the backend cold-starts.
 
 ## Local dev
 

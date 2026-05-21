@@ -345,6 +345,18 @@ function renderHtml() {
   `;
 }
 
+/**
+ * Replace a chart canvas with a plain-text fallback when Chart.js failed to
+ * load (e.g. CDN blocked, offline). Without this guard `new window.Chart(...)`
+ * would throw and crash the render silently.
+ */
+function paintChartFallback(canvas) {
+  const note = document.createElement("p");
+  note.className = "muted";
+  note.textContent = "Charts are unavailable right now — please refresh.";
+  canvas.replaceWith(note);
+}
+
 function accountsByClass() {
   const grouped = {};
   for (const cls of ASSET_CLASS_ORDER) grouped[cls] = [];
@@ -408,7 +420,11 @@ async function refreshHistoryDialog() {
 
 function renderHistoryChart() {
   const canvas = document.getElementById("ah-chart");
-  if (!canvas || !window.Chart) return;
+  if (!canvas) return;
+  if (!window.Chart) {
+    paintChartFallback(canvas);
+    return;
+  }
   if (historyState.chart) {
     historyState.chart.destroy();
     historyState.chart = null;
@@ -531,7 +547,11 @@ function bindHistoryDialogOnce() {
 
 function renderDonut() {
   const canvas = document.getElementById("networth-donut-chart");
-  if (!canvas || !window.Chart || state.composition.length === 0) return;
+  if (!canvas || state.composition.length === 0) return;
+  if (!window.Chart) {
+    paintChartFallback(canvas);
+    return;
+  }
   if (state.donutChart) {
     state.donutChart.destroy();
     state.donutChart = null;
@@ -616,7 +636,11 @@ function filterSeriesForPeriod(series, period) {
 
 function renderMainChart() {
   const canvas = document.getElementById("networth-main-chart");
-  if (!canvas || !window.Chart) return;
+  if (!canvas) return;
+  if (!window.Chart) {
+    paintChartFallback(canvas);
+    return;
+  }
   if (state.mainChart) {
     state.mainChart.destroy();
     state.mainChart = null;

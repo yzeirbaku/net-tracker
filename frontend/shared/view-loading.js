@@ -17,7 +17,7 @@
 
 import { escapeHtml } from "./ui.js";
 
-const _WAKE_HINT_MS = 2500;
+const _WAKE_HINT_MS = 5000;
 
 export function paintViewLoading(rootEl, _label) {
   if (!rootEl) return;

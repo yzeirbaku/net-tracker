@@ -1459,6 +1459,11 @@ async function openSnapshotDialog() {
     // duplicate the saved-but-not-snapshotted state on retry-via-cancel).
     let phase = "save";
     try {
+      // Bake the current sort preference into the draft just like
+      // saveTemplateDraft does — this path bypasses that helper and runs
+      // its own PATCH + POST, so without this call the version snapshot
+      // would inherit the unsorted order while plain Save would not.
+      applyDraftSort(state.templateDraft, state.budgetSort);
       await withBusyButton(saveBtn, "Saving…", async () => {
         await api.patch("/budget/template", buildTemplatePatchPayload());
         state.templateBaseline = JSON.stringify(serializeTemplate(state.templateDraft));

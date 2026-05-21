@@ -1460,6 +1460,28 @@ dialog menu button[value="save"].dialog-danger-confirm {
   font-variant-numeric: tabular-nums;
 }
 
+/* Sort row sits just under the salary panel. Label on the left, dropdown
+ * on the right — mirrors the salary panel's horizontal layout so the two
+ * read as a paired header strip above the category list. */
+.budget-sort-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.6rem;
+  margin: 0.4rem 0 0.6rem;
+  padding: 0 0.15rem;
+}
+.budget-sort-label {
+  font-size: 0.7rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--muted);
+}
+.budget-sort-mount {
+  min-width: 200px;
+  flex: 0 0 auto;
+}
+
 /* Square icon-action button used for every per-row × / ✎ / ✓ / ↺ in the
  * budget + template views. Matches .ah-action-btn pixel-for-pixel so the
  * Net Worth account-history row buttons and these row buttons read as one

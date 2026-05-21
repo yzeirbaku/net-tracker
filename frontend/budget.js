@@ -16,6 +16,7 @@
 
 import { api } from "./shared/api.js";
 import { createMonthPicker } from "./shared/datepicker.js";
+import { createDropdown } from "./shared/dropdown.js";
 import {
   blurAutoFocusedInDialog,
   confirmPrompt,
@@ -36,6 +37,13 @@ const state = {
   categories: [],                   // all user categories (for the add-category picker)
   // Collapsed state per (year, month, month_category_id). Persisted to localStorage.
   collapsed: loadCollapsed(),
+  // Sort mode for the month view. "amount" = categories by total planned
+  // descending, items inside by planned_dkk descending. "alpha" = both
+  // sorted A→Z by name. Persisted to localStorage so the user's pick
+  // survives reloads. Template view ignores this — it uses the raw
+  // sort_order from the draft so manual ordering is preserved while
+  // editing.
+  budgetSort: loadBudgetSort(),
   // Local edit buffer for the template editor — exists only while sub-view = "template".
   templateDraft: null,
   // Pristine snapshot of the draft as last loaded from the server — used to
@@ -79,6 +87,57 @@ function loadCollapsed() {
 
 function saveCollapsed() {
   localStorage.setItem("net-tracker.budget.collapsed", JSON.stringify(state.collapsed));
+}
+
+const BUDGET_SORT_OPTIONS = [
+  { value: "amount", label: "Amount (high → low)" },
+  { value: "alpha",  label: "A → Z" },
+];
+const BUDGET_SORT_KEY = "net-tracker.budget.sort";
+
+function loadBudgetSort() {
+  const s = localStorage.getItem(BUDGET_SORT_KEY);
+  return s === "alpha" ? "alpha" : "amount";
+}
+
+function saveBudgetSort(s) {
+  localStorage.setItem(BUDGET_SORT_KEY, s);
+}
+
+/** Return a shallow-cloned month with categories and items reordered
+ *  by state.budgetSort. The original `month` and its arrays are not
+ *  mutated — keeps re-renders idempotent and lets the source-of-truth
+ *  month payload retain its server-side sort_order. */
+function sortedMonth(month) {
+  if (!month || !Array.isArray(month.categories)) return month;
+  const mode = state.budgetSort;
+  const sortItems = (items) => {
+    if (mode === "alpha") {
+      return [...items].sort((a, b) => a.name.localeCompare(b.name));
+    }
+    return [...items].sort(
+      (a, b) => Number(b.planned_dkk) - Number(a.planned_dkk),
+    );
+  };
+  const cats = month.categories.map((c) => ({
+    ...c,
+    items: sortItems(c.items || []),
+  }));
+  cats.sort((a, b) => {
+    if (mode === "alpha") {
+      return a.category_name.localeCompare(b.category_name);
+    }
+    const at = (a.items || []).reduce(
+      (sum, i) => sum + Number(i.planned_dkk || 0),
+      0,
+    );
+    const bt = (b.items || []).reduce(
+      (sum, i) => sum + Number(i.planned_dkk || 0),
+      0,
+    );
+    return bt - at;
+  });
+  return { ...month, categories: cats };
 }
 
 function collapseKey(year, month, monthCategoryId) {
@@ -134,6 +193,56 @@ function parseAmount(s) {
   const n = Number(cleaned);
   if (Number.isNaN(n) || n < 0) return null;
   return n;
+}
+
+/** Format a numeric value as a Danish-style amount string for an input
+ *  field's initial value: dots every three digits, no currency suffix. */
+function formatAmountForInput(n) {
+  const num = Number(n);
+  if (!Number.isFinite(num)) return "";
+  return Math.round(num).toLocaleString("de-DE");
+}
+
+/** Live-format an amount input as the user types: dots every three digits
+ *  on the integer part, single comma decimal preserved if present, leading
+ *  zeros stripped. Caret position is preserved relative to the digits the
+ *  user has typed so far. Safe to call on every `input` event. */
+function liveFormatAmountInput(input) {
+  const raw = input.value;
+  const caret = input.selectionStart ?? raw.length;
+  // Count digits before the caret so we can re-anchor it after rewriting.
+  const digitsBeforeCaret = raw.slice(0, caret).replace(/[^\d]/g, "").length;
+  // Strip everything but digits and the first comma; drop any extra commas.
+  const stripped = raw.replace(/[^\d,]/g, "");
+  const firstComma = stripped.indexOf(",");
+  let intPart = firstComma === -1 ? stripped : stripped.slice(0, firstComma);
+  const decPart = firstComma === -1
+    ? ""
+    : stripped.slice(firstComma + 1).replace(/,/g, "").slice(0, 2);
+  // Strip leading zeros but keep a lone "0" so the user can type "0,5" etc.
+  intPart = intPart.replace(/^0+(?=\d)/, "");
+  const formattedInt = intPart.replace(/\B(?=(\d{3})+(?!\d))/g, ".");
+  const formatted = firstComma === -1 ? formattedInt : `${formattedInt},${decPart}`;
+  if (formatted === raw) return; // nothing to do, don't disturb the caret
+  input.value = formatted;
+  // Re-anchor caret: walk the formatted string and stop once we've passed
+  // the same number of digits the user had typed before.
+  let digitsSeen = 0;
+  let newCaret = 0;
+  for (let i = 0; i < formatted.length; i++) {
+    if (digitsSeen >= digitsBeforeCaret) break;
+    newCaret = i + 1;
+    if (/\d/.test(formatted[i])) digitsSeen++;
+  }
+  input.setSelectionRange(newCaret, newCaret);
+}
+
+/** Attach the live-formatter to one input. Idempotent: the input is
+ *  tagged with data-amount-fmt so repeated calls don't double-bind. */
+function installAmountFormatter(input) {
+  if (!input || input.dataset.amountFmt === "1") return;
+  input.dataset.amountFmt = "1";
+  input.addEventListener("input", () => liveFormatAmountInput(input));
 }
 
 // ── Derivations ──────────────────────────────────────────────────────────
@@ -294,13 +403,19 @@ function renderEmptyMonthHtml() {
   `;
 }
 
-function renderMonthBodyHtml(month) {
+function renderMonthBodyHtml(rawMonth) {
+  // Apply the user's chosen sort to a shallow clone — the raw payload
+  // keeps its server-side sort_order so other parts of the code that
+  // care about ordering (or future "reset to default" affordances)
+  // can still see it.
+  const month = sortedMonth(rawMonth);
   const archived = month.archived_at !== null;
   const planned = monthPlannedTotal(month);
   const spent = monthSpentTotal(month);
   const salary = Number(month.salary_dkk);
   const free = salary - planned;
   const openCount = monthOpenCount(month);
+  const hasCategories = month.categories.length > 0;
 
   // Archive button only appears when every item is done (and the month
   // isn't already archived). No "disabled archive" state — the affordance
@@ -316,6 +431,14 @@ function renderMonthBodyHtml(month) {
       </div>
       ${archived ? "" : '<button type="button" data-budget-action="edit-salary" class="budget-icon-btn" title="Edit salary" aria-label="Edit salary"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/></svg></button>'}
     </div>
+    ${
+      hasCategories
+        ? `<div class="budget-sort-row">
+             <span class="budget-sort-label">Sort</span>
+             <div id="budget-sort-mount" class="budget-sort-mount"></div>
+           </div>`
+        : ""
+    }
     <div class="budget-categories">
       ${month.categories.map((c) => renderCategoryHtml(c, archived)).join("") || '<p class="muted">No categories in this month.</p>'}
     </div>
@@ -422,6 +545,25 @@ function mountMonthPicker() {
 }
 
 function bindMonthHandlers(month, _monthExists, _allMonths) {
+  // Sort dropdown — present only when the month has at least one category.
+  // Mounted fresh on every render, so the createDropdown instance doesn't
+  // outlive the DOM node it lives in.
+  const sortMount = document.getElementById("budget-sort-mount");
+  if (sortMount) {
+    const dd = createDropdown({
+      options: BUDGET_SORT_OPTIONS,
+      value: state.budgetSort,
+      ariaLabel: "Sort categories",
+      onChange: (v) => {
+        if (v === state.budgetSort) return;
+        state.budgetSort = v;
+        saveBudgetSort(v);
+        renderBudget();
+      },
+    });
+    sortMount.replaceChildren(dd.element);
+  }
+
   // Re-renders blow away child listeners but listeners on `#budget-root`
   // itself persist — so we MUST detach the previous handler before adding
   // a fresh one, or every render accumulates another set.
@@ -638,7 +780,8 @@ function openSalaryDialog(month) {
     </menu>
   `);
   const input = dlg.querySelector("#budget-salary-input");
-  input.value = String(Math.round(Number(month.salary_dkk)));
+  input.value = formatAmountForInput(month.salary_dkk);
+  installAmountFormatter(input);
   bindSimpleDialog(dlg, async (saveBtn) => {
     const v = parseAmount(input.value);
     if (v === null) { toast("Enter a valid amount", "error"); return false; }
@@ -703,11 +846,13 @@ async function openItemDialog({ mode, item, monthCategoryId, categoryId }) {
     paidCheckbox.checked = false;
   } else {
     nameInput.value = item.name;
-    plannedInput.value = String(Math.round(Number(item.planned_dkk)));
+    plannedInput.value = formatAmountForInput(item.planned_dkk);
     remainingWrap.hidden = false;
-    remainingInput.value = String(Math.round(Number(item.remaining_dkk)));
+    remainingInput.value = formatAmountForInput(item.remaining_dkk);
     paidWrap.hidden = true;
   }
+  installAmountFormatter(plannedInput);
+  installAmountFormatter(remainingInput);
 
   bindSimpleDialog(dlg, async (saveBtn) => {
     const name = nameInput.value.trim();
@@ -973,7 +1118,7 @@ function renderTemplateEditorHtml(root) {
         <div>
           <div class="budget-salary-label">Salary</div>
         </div>
-        <input id="tpl-salary-input" type="text" inputmode="decimal" class="budget-salary-input" value="${escapeHtml(String(Math.round(Number(tpl.salary_dkk))))}" />
+        <input id="tpl-salary-input" type="text" inputmode="decimal" class="budget-salary-input" value="${escapeHtml(formatAmountForInput(tpl.salary_dkk))}" />
       </div>
       <div class="budget-categories">
         ${tpl.categories.map((c, ci) => renderTemplateCategoryHtml(c, ci)).join("") || '<p class="muted">No categories in this template. Add one below.</p>'}
@@ -1019,7 +1164,7 @@ function renderTemplateItemRow(catIdx, itemIdx, item) {
   return `
     <div class="budget-template-item-row" data-cat-idx="${catIdx}" data-item-idx="${itemIdx}">
       <input type="text" class="budget-template-item-name" placeholder="Item name" value="${escapeHtml(item.name || "")}" />
-      <input type="text" class="budget-template-item-amount" inputmode="decimal" placeholder="0" value="${escapeHtml(String(Math.round(Number(item.planned_dkk) || 0)))}" />
+      <input type="text" class="budget-template-item-amount" inputmode="decimal" placeholder="0" value="${escapeHtml(formatAmountForInput(item.planned_dkk))}" />
       <button type="button" data-budget-action="tpl-remove-item" data-cat-idx="${catIdx}" data-item-idx="${itemIdx}" class="budget-icon-btn budget-icon-btn-danger" title="Delete item" aria-label="Delete item"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 6 6 18M6 6l12 12"/></svg></button>
     </div>
   `;
@@ -1030,6 +1175,7 @@ function bindTemplateEditorHandlers(root) {
   // on every render, so attach to it directly (no listener-leak risk).
   const salaryInput = document.getElementById("tpl-salary-input");
   if (salaryInput) {
+    installAmountFormatter(salaryInput);
     salaryInput.addEventListener("input", () => {
       const v = parseAmount(salaryInput.value);
       // Skip the update on null (empty / mid-typing). The draft keeps its
@@ -1040,6 +1186,12 @@ function bindTemplateEditorHandlers(root) {
       state.templateDraft.salary_dkk = String(v);
     });
   }
+
+  // Item amount inputs need the live formatter attached too. They're
+  // recreated on every render, so query and bind here — installAmount-
+  // Formatter is idempotent (data-amount-fmt sentinel) so repeated calls
+  // on the same node are safe.
+  root.querySelectorAll(".budget-template-item-amount").forEach(installAmountFormatter);
 
   // Item name / amount inputs — delegate from root. Single handler swapped
   // per render so re-renders don't accumulate listeners.

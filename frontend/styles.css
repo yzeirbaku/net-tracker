@@ -514,6 +514,14 @@ label { display: block; font-size: 0.78rem; color: var(--muted); margin-bottom: 
 .list-rows .meta { color: var(--muted); font-size: 0.78rem; }
 .list-rows .empty { color: var(--muted); font-size: 0.85rem; padding: 0.5rem 0; }
 
+/* Settings row affordances should match the per-row icon size used by Budget
+ * item rows and Net Worth's account-history dialog (✎ 0.95rem, × 1.1rem) —
+ * not the larger headline size. The compound-class selector on the danger
+ * rule has strictly higher specificity than the base, so source order
+ * doesn't matter. */
+.list-rows .budget-icon-btn { font-size: 0.95rem; }
+.list-rows .budget-icon-btn.budget-icon-btn-danger { font-size: 1.1rem; }
+
 .add-row {
   display: grid; gap: 0.5rem; grid-template-columns: 1fr auto;
   margin-bottom: 0.5rem;

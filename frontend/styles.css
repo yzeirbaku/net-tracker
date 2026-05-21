@@ -544,6 +544,14 @@ label { display: block; font-size: 0.78rem; color: var(--muted); margin-bottom: 
   height: 12px;
 }
 
+/* The tick (check) icon is a simple two-stroke glyph, so at 12px it reads
+ * a touch lighter than the heavier pencil / rotate-ccw next to it. Nudge
+ * it up by 1px so the trio in an item row looks evenly weighted. */
+.budget-icon-btn[data-budget-action="tick"] > svg {
+  width: 13px;
+  height: 13px;
+}
+
 .add-row {
   display: grid; gap: 0.5rem; grid-template-columns: 1fr auto;
   margin-bottom: 0.5rem;

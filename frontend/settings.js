@@ -140,8 +140,8 @@ function renderHtml() {
                 }</span>
               </span>
               <span style="display:flex; gap:0.4rem">
-                <button class="row-action" data-edit-category="${c.id}" title="Edit">✎</button>
-                <button class="row-action" data-delete-category="${c.id}" title="Delete">×</button>
+                <button class="budget-icon-btn" data-edit-category="${c.id}" type="button" aria-label="Edit">✎</button>
+                <button class="budget-icon-btn budget-icon-btn-danger" data-delete-category="${c.id}" type="button" aria-label="Delete">×</button>
               </span>
             </li>`
                   )
@@ -196,7 +196,7 @@ function renderHtml() {
                   a.asset_class ? " · " + escapeHtml(a.asset_class) : ""
                 }</span>
               </span>
-              <button class="row-action" data-delete-account="${a.id}" title="Delete">×</button>
+              <button class="budget-icon-btn budget-icon-btn-danger" data-delete-account="${a.id}" type="button" aria-label="Delete">×</button>
             </li>`
                   )
                   .join("")

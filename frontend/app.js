@@ -7,6 +7,7 @@ import {
 } from "./shared/auth.js";
 import { closeDialog, friendlyError, openDialog, toast, withBusyButton } from "./shared/ui.js";
 import { renderBudget, resetBudgetSubView } from "./budget.js";
+import { renderHome } from "./home.js";
 import { renderNetWorth } from "./networth.js";
 import { renderSettings } from "./settings.js";
 
@@ -26,6 +27,7 @@ function showView(name) {
   if (name === "settings") renderSettings();
   if (name === "networth") renderNetWorth();
   if (name === "budget") { resetBudgetSubView(); renderBudget(); }
+  if (name === "home") renderHome();
 }
 
 // ----- drawer -----
@@ -197,7 +199,7 @@ function applyAuthState(signedIn) {
   if (accountInfo) accountInfo.hidden = !signedIn;
 
   $("#home-loading").hidden = true;
-  $("#home-signed-in").hidden = !signedIn;
+  $("#home-root").hidden = !signedIn;
   $("#home-signed-out").hidden = signedIn;
 }
 
@@ -211,7 +213,7 @@ function showBootLoading() {
   const loading = $("#home-loading");
   const detail = $("#home-loading-detail");
   loading.hidden = false;
-  $("#home-signed-in").hidden = true;
+  $("#home-root").hidden = true;
   $("#home-signed-out").hidden = true;
   detail.hidden = true;
   const hintTimer = setTimeout(() => { detail.hidden = false; }, 2500);

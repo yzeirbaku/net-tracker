@@ -2044,3 +2044,60 @@ input[type="checkbox"].tk-checkbox:checked::after {
 @media (hover: hover) {
   .home-cta:hover { text-decoration: underline; }
 }
+.home-free {
+  font-size: 1.4rem;
+  font-weight: 700;
+  margin-top: 2px;
+}
+.home-free-positive { color: #22c55e; }
+.home-free-negative { color: #ef4444; }
+.home-progress {
+  height: 6px;
+  background: var(--track, #1f2937);
+  border-radius: 3px;
+  overflow: hidden;
+  margin-top: 8px;
+}
+.home-progress > div {
+  height: 100%;
+  background: linear-gradient(90deg, #16a34a, #34d399);
+  transition: width 200ms ease;
+}
+.home-sub {
+  font-size: 0.75rem;
+  color: var(--muted, #9ca3af);
+  margin-top: 6px;
+}
+.home-next-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 6px 0;
+  border-top: 1px solid var(--border, #1f2937);
+  font-size: 0.85rem;
+}
+.home-tile .home-next-row:first-of-type {
+  border-top: none;
+  padding-top: 0;
+}
+.home-next-left { display: inline-flex; align-items: center; gap: 8px; }
+.home-dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; flex-shrink: 0; }
+.home-next-amount { color: var(--text, #e5e7eb); font-variant-numeric: tabular-nums; }
+.home-comp-bar {
+  display: flex;
+  height: 10px;
+  border-radius: 5px;
+  overflow: hidden;
+  margin-top: 2px;
+}
+.home-comp-seg { height: 100%; transition: width 200ms ease; }
+.home-comp-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 12px;
+  margin-top: 10px;
+  font-size: 0.78rem;
+  color: var(--text, #e5e7eb);
+}
+.home-comp-legend-item { display: inline-flex; align-items: center; gap: 6px; }
+.home-comp-pct { color: var(--muted, #9ca3af); font-variant-numeric: tabular-nums; }

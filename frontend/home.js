@@ -6,9 +6,9 @@
  */
 
 import { api } from "./shared/api.js";
-import { friendlyError } from "./shared/ui.js";
+import { escapeHtml, friendlyError } from "./shared/ui.js";
 import { paintViewLoading, paintViewError } from "./shared/view-loading.js";
-import { getNetWorthViewMode } from "./networth.js";
+import { ASSET_CLASS_COLORS, ASSET_CLASS_ORDER, getNetWorthViewMode } from "./networth.js";
 
 const DKK_TO_EUR_RATE = 7.46038;
 
@@ -90,6 +90,146 @@ function renderSparklineSvg(series, nw, mode) {
   `;
 }
 
+function compositionForView(nw, mode) {
+  const raw = nw.composition || [];
+  if (raw.length === 0) return [];
+  if (mode === "no_pension") {
+    const filtered = raw.filter((c) => c.asset_class !== "Pension");
+    const total = filtered.reduce((s, c) => s + Number(c.value_dkk), 0);
+    if (total <= 0) return [];
+    return filtered.map((c) => ({
+      asset_class: c.asset_class,
+      value_dkk: Number(c.value_dkk),
+      percentage: (Number(c.value_dkk) / total) * 100,
+    }));
+  }
+  if (mode === "liquid") {
+    const haircut = Number(nw.pension_haircut_rate);
+    const adjusted = raw.map((c) => ({
+      asset_class: c.asset_class,
+      value_dkk: c.asset_class === "Pension" ? Number(c.value_dkk) * (1 - haircut) : Number(c.value_dkk),
+    }));
+    const total = adjusted.reduce((s, c) => s + c.value_dkk, 0);
+    if (total <= 0) return [];
+    return adjusted.map((c) => ({
+      ...c,
+      percentage: (c.value_dkk / total) * 100,
+    }));
+  }
+  return raw.map((c) => ({
+    asset_class: c.asset_class,
+    value_dkk: Number(c.value_dkk),
+    percentage: Number(c.pct) * 100,
+  }));
+}
+
+function renderCompositionTile(nw, mode) {
+  const comp = compositionForView(nw, mode);
+  if (comp.length === 0) return "";
+  // Canonical asset-class order for visual consistency with the Net Worth view.
+  const ordered = [...comp].sort(
+    (a, b) => ASSET_CLASS_ORDER.indexOf(a.asset_class) - ASSET_CLASS_ORDER.indexOf(b.asset_class),
+  );
+  const segments = ordered.map((c) => {
+    const color = ASSET_CLASS_COLORS[c.asset_class] || "#999";
+    return `<div class="home-comp-seg" style="width:${c.percentage.toFixed(2)}%;background:${color}" title="${escapeHtml(c.asset_class)} · ${c.percentage.toFixed(1)}%"></div>`;
+  }).join("");
+  const legend = ordered.map((c) => {
+    const color = ASSET_CLASS_COLORS[c.asset_class] || "#999";
+    return `
+      <span class="home-comp-legend-item">
+        <span class="home-dot" style="background:${color}"></span>
+        ${escapeHtml(c.asset_class)} <span class="home-comp-pct">${c.percentage.toFixed(0)}%</span>
+      </span>
+    `;
+  }).join("");
+  return `
+    <div class="home-tile" role="button" tabindex="0" data-home-nav="networth" aria-label="Open Net Worth">
+      <div class="home-label">Composition</div>
+      <div class="home-comp-bar">${segments}</div>
+      <div class="home-comp-legend">${legend}</div>
+    </div>
+  `;
+}
+
+function monthLabel(year, month) {
+  const names = ["January","February","March","April","May","June","July","August","September","October","November","December"];
+  return `${names[month - 1]} ${year}`;
+}
+
+function summarizeMonth(month) {
+  const items = (month.categories || []).flatMap((c) => c.items || []);
+  let planned = 0;
+  let spent = 0;
+  let ticked = 0;
+  for (const it of items) {
+    const p = Number(it.planned_dkk);
+    const r = Number(it.remaining_dkk);
+    planned += p;
+    spent += (p - r);
+    if ((it.ticked_at !== null && it.ticked_at !== undefined) || r <= 0) ticked += 1;
+  }
+  const salary = Number(month.salary_dkk);
+  return {
+    planned, spent, ticked,
+    total: items.length,
+    freeMoney: salary - planned,
+    pct: planned > 0 ? Math.max(0, Math.min(100, (spent / planned) * 100)) : 0,
+  };
+}
+
+function renderBudgetTile(month) {
+  const s = summarizeMonth(month);
+  const freeCls = s.freeMoney >= 0 ? "home-free-positive" : "home-free-negative";
+  return `
+    <div class="home-tile" role="button" tabindex="0" data-home-nav="budget" aria-label="Open Budget">
+      <div class="home-label">${monthLabel(month.year, month.month)} · free money</div>
+      <div class="home-free ${freeCls}">${fmtDot(s.freeMoney)} dkk</div>
+      <div class="home-progress"><div style="width:${s.pct.toFixed(1)}%"></div></div>
+      <div class="home-sub">${fmtDot(s.spent)} spent of ${fmtDot(s.planned)} planned · ${s.ticked}/${s.total} ticked</div>
+    </div>
+  `;
+}
+
+function topUntickedItems(month, limit = 3) {
+  const out = [];
+  for (const cat of (month.categories || [])) {
+    for (const it of (cat.items || [])) {
+      const r = Number(it.remaining_dkk);
+      const isTicked = (it.ticked_at !== null && it.ticked_at !== undefined) || r <= 0;
+      if (!isTicked) {
+        out.push({
+          name: it.name,
+          planned: Number(it.planned_dkk),
+          color: cat.category_color || "#22c55e",
+        });
+      }
+    }
+  }
+  out.sort((a, b) => b.planned - a.planned);
+  return out.slice(0, limit);
+}
+
+function renderNextUpTile(month) {
+  const items = topUntickedItems(month);
+  if (items.length === 0) return "";
+  const rows = items.map((it) => `
+    <div class="home-next-row">
+      <span class="home-next-left">
+        <span class="home-dot" style="background:${it.color}"></span>
+        ${escapeHtml(it.name)}
+      </span>
+      <span class="home-next-amount">${fmtDot(it.planned)}</span>
+    </div>
+  `).join("");
+  return `
+    <div class="home-tile" role="button" tabindex="0" data-home-nav="budget" aria-label="Open Budget">
+      <div class="home-label">Next up</div>
+      ${rows}
+    </div>
+  `;
+}
+
 function renderHeroBody(nw, mode) {
   const hasAccounts = (nw.accounts || []).length > 0;
   const hasBalances = hasAccounts && (nw.series || []).length > 0;
@@ -137,20 +277,37 @@ export async function renderHome() {
   const { year, month } = currentYearMonth();
   const since = isoMinusDays(30);
 
-  let nw = null;
-  try {
-    nw = await api.get(`/networth?range_from=${since}`);
-  } catch (err) {
-    paintViewError(root, friendlyError(err, "Couldn't load Home"));
+  const [nwRes, budgetRes] = await Promise.allSettled([
+    api.get(`/networth?range_from=${since}`),
+    api.get(`/budget/months/${year}/${month}`),
+  ]);
+
+  if (nwRes.status === "rejected") {
+    // Hero is mandatory — if NW fails, the page can't render meaningfully.
+    paintViewError(root, friendlyError(nwRes.reason, "Couldn't load Home"));
     return;
+  }
+  const nw = nwRes.value;
+  let budget = null;
+  if (budgetRes.status === "fulfilled") {
+    budget = budgetRes.value;
+  } else if (budgetRes.reason?.message !== "month_not_stamped") {
+    console.warn("Home: budget fetch failed", budgetRes.reason);
   }
 
   const mode = getNetWorthViewMode();
-  root.innerHTML = `
-    <div class="home-tile" role="button" tabindex="0" data-home-nav="networth" aria-label="Open Net Worth">
-      ${renderHeroBody(nw, mode)}
-    </div>
-  `;
+  const tiles = [
+    `<div class="home-tile" role="button" tabindex="0" data-home-nav="networth" aria-label="Open Net Worth">${renderHeroBody(nw, mode)}</div>`,
+  ];
+  const composition = renderCompositionTile(nw, mode);
+  if (composition) tiles.push(composition);
+  if (budget) {
+    tiles.push(renderBudgetTile(budget));
+    const nextUp = renderNextUpTile(budget);
+    if (nextUp) tiles.push(nextUp);
+  }
+
+  root.innerHTML = tiles.join("");
   booted = true;
   bindHomeClickThroughs(root);
 }

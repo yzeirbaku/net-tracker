@@ -10,9 +10,9 @@ import {
 } from "./shared/ui.js";
 import { paintViewError, paintViewLoading } from "./shared/view-loading.js";
 
-const ASSET_CLASS_ORDER = ["Cash", "Stocks", "Crypto", "Precious Metals", "Pension", "Other"];
+export const ASSET_CLASS_ORDER = ["Cash", "Stocks", "Crypto", "Precious Metals", "Pension", "Other"];
 
-const ASSET_CLASS_COLORS = {
+export const ASSET_CLASS_COLORS = {
   "Cash":             "#64748b",
   "Stocks":           "#22c55e",
   "Crypto":           "#f59e0b",

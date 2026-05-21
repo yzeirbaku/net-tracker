@@ -164,6 +164,10 @@ function bindLogin() {
     }
   });
   // iOS PWA fallback: paste the magic link, extract the token, verify.
+  // We deliberately do NOT call refreshSignedInState() here — that would fire
+  // an extra GET /auth/me, and api.js aggressively clears the token on a 401.
+  // The /verify response already gives us email + token, so we update the UI
+  // directly from it (same pattern as gold-bar-tracker).
   $("#login-paste-submit").addEventListener("click", async (e) => {
     e.preventDefault();
     const raw = $("#login-paste").value.trim();
@@ -181,11 +185,12 @@ function bindLogin() {
       await withBusyButton(e.currentTarget, "Signing in…", async () => {
         const res = await api.post("/auth/verify", { token });
         setToken(res.token);
+        $(".menu-account-info").textContent = `Signed in as ${res.email}`;
+        applyAuthState(true);
         toast(`Signed in as ${res.email}`);
       });
       $("#login-paste").value = "";
       closeDialog("login-dialog");
-      await refreshSignedInState();
     } catch (err) {
       toast(friendlyError(err, "Sign-in failed"), "error");
     }

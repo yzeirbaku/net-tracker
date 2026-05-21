@@ -314,7 +314,7 @@ function renderMonthBodyHtml(month) {
         <div class="budget-salary-label">Salary</div>
         <div class="budget-salary-amount">${escapeHtml(fmtDKK(salary))}</div>
       </div>
-      ${archived ? "" : '<button type="button" data-budget-action="edit-salary" class="budget-icon-btn" title="Edit salary" aria-label="Edit salary">✎</button>'}
+      ${archived ? "" : '<button type="button" data-budget-action="edit-salary" class="budget-icon-btn" title="Edit salary" aria-label="Edit salary"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/></svg></button>'}
     </div>
     <div class="budget-categories">
       ${month.categories.map((c) => renderCategoryHtml(c, archived)).join("") || '<p class="muted">No categories in this month.</p>'}
@@ -353,7 +353,7 @@ function renderCategoryHtml(cat, archived) {
           ${
             archived
               ? ""
-              : `<button type="button" data-budget-action="remove-cat" data-month-cat-id="${cat.id}" class="budget-icon-btn budget-icon-btn-danger" title="Remove this category from this month">×</button>`
+              : `<button type="button" data-budget-action="remove-cat" data-month-cat-id="${cat.id}" class="budget-icon-btn budget-icon-btn-danger" title="Remove this category from this month" aria-label="Remove category"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 6 6 18M6 6l12 12"/></svg></button>`
           }
         </span>
       </div>
@@ -389,9 +389,9 @@ function renderItemHtml(item, archived) {
         archived
           ? ""
           : `<span class="budget-item-actions">
-              <button type="button" class="budget-icon-btn" data-budget-action="edit-item" data-item-id="${item.id}" title="Edit / partial pay">✎</button>
-              <button type="button" class="budget-icon-btn" data-budget-action="${done ? "untick" : "tick"}" data-item-id="${item.id}" title="${done ? "Untick" : "Tick complete"}">${done ? "↺" : "✓"}</button>
-              <button type="button" class="budget-icon-btn budget-icon-btn-danger" data-budget-action="delete-item" data-item-id="${item.id}" title="Delete item">×</button>
+              <button type="button" class="budget-icon-btn" data-budget-action="edit-item" data-item-id="${item.id}" title="Edit / partial pay" aria-label="Edit item"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/></svg></button>
+              <button type="button" class="budget-icon-btn" data-budget-action="${done ? "untick" : "tick"}" data-item-id="${item.id}" title="${done ? "Untick" : "Tick complete"}" aria-label="${done ? "Untick" : "Tick complete"}">${done ? '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/></svg>' : '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 6 9 17l-5-5"/></svg>'}</button>
+              <button type="button" class="budget-icon-btn budget-icon-btn-danger" data-budget-action="delete-item" data-item-id="${item.id}" title="Delete item" aria-label="Delete item"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 6 6 18M6 6l12 12"/></svg></button>
             </span>`
       }
     </div>
@@ -1004,7 +1004,7 @@ function renderTemplateCategoryHtml(cat, catIdx) {
         </span>
         <span class="budget-cat-totals">
           <span>${escapeHtml(fmtDKK(total))}</span>
-          <button type="button" data-budget-action="tpl-remove-cat" data-cat-idx="${catIdx}" class="budget-icon-btn budget-icon-btn-danger" title="Remove this category">×</button>
+          <button type="button" data-budget-action="tpl-remove-cat" data-cat-idx="${catIdx}" class="budget-icon-btn budget-icon-btn-danger" title="Remove this category" aria-label="Remove category"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 6 6 18M6 6l12 12"/></svg></button>
         </span>
       </div>
       <div class="budget-cat-body">
@@ -1020,7 +1020,7 @@ function renderTemplateItemRow(catIdx, itemIdx, item) {
     <div class="budget-template-item-row" data-cat-idx="${catIdx}" data-item-idx="${itemIdx}">
       <input type="text" class="budget-template-item-name" placeholder="Item name" value="${escapeHtml(item.name || "")}" />
       <input type="text" class="budget-template-item-amount" inputmode="decimal" placeholder="0" value="${escapeHtml(String(Math.round(Number(item.planned_dkk) || 0)))}" />
-      <button type="button" data-budget-action="tpl-remove-item" data-cat-idx="${catIdx}" data-item-idx="${itemIdx}" class="budget-icon-btn budget-icon-btn-danger" title="Delete item">×</button>
+      <button type="button" data-budget-action="tpl-remove-item" data-cat-idx="${catIdx}" data-item-idx="${itemIdx}" class="budget-icon-btn budget-icon-btn-danger" title="Delete item" aria-label="Delete item"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 6 6 18M6 6l12 12"/></svg></button>
     </div>
   `;
 }
@@ -1426,14 +1426,7 @@ function renderArchiveRow(m) {
       <td>${escapeHtml(fmtDKK(m.spent_total_dkk))}</td>
       <td>${escapeHtml(fmtDKK(saved))}</td>
       <td class="budget-archive-action-cell">
-        <button type="button" class="budget-icon-btn" data-budget-action="arch-unarchive" data-y="${m.year}" data-m="${m.month}" title="Unarchive" aria-label="Unarchive ${escapeHtml(fmtMonthLabel(m.year, m.month))}">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="16" height="16" aria-hidden="true">
-            <rect x="3" y="3" width="18" height="5" rx="1"/>
-            <path d="M5 8v12h14V8"/>
-            <path d="m9 13 3-3 3 3"/>
-            <path d="M12 10v7"/>
-          </svg>
-        </button>
+        <button type="button" class="budget-icon-btn" data-budget-action="arch-unarchive" data-y="${m.year}" data-m="${m.month}" title="Unarchive" aria-label="Unarchive ${escapeHtml(fmtMonthLabel(m.year, m.month))}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="3" width="18" height="5" rx="1"/><path d="M5 8v12h14V8"/><path d="m9 13 3-3 3 3"/><path d="M12 10v7"/></svg></button>
       </td>
     </tr>
   `;

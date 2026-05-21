@@ -140,8 +140,8 @@ function renderHtml() {
                 }</span>
               </span>
               <span style="display:flex; gap:0.4rem">
-                <button class="budget-icon-btn budget-icon-btn-svg" data-edit-category="${c.id}" type="button" aria-label="Edit"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/></svg></button>
-                <button class="budget-icon-btn budget-icon-btn-danger budget-icon-btn-svg" data-delete-category="${c.id}" type="button" aria-label="Delete"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 6 6 18M6 6l12 12"/></svg></button>
+                <button class="budget-icon-btn" data-edit-category="${c.id}" type="button" aria-label="Edit"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/></svg></button>
+                <button class="budget-icon-btn budget-icon-btn-danger" data-delete-category="${c.id}" type="button" aria-label="Delete"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 6 6 18M6 6l12 12"/></svg></button>
               </span>
             </li>`
                   )
@@ -196,7 +196,7 @@ function renderHtml() {
                   a.asset_class ? " · " + escapeHtml(a.asset_class) : ""
                 }</span>
               </span>
-              <button class="budget-icon-btn budget-icon-btn-danger" data-delete-account="${a.id}" type="button" aria-label="Delete">×</button>
+              <button class="budget-icon-btn budget-icon-btn-danger" data-delete-account="${a.id}" type="button" aria-label="Delete"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 6 6 18M6 6l12 12"/></svg></button>
             </li>`
                   )
                   .join("")

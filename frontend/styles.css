@@ -522,23 +522,26 @@ label { display: block; font-size: 0.78rem; color: var(--muted); margin-bottom: 
 .list-rows .budget-icon-btn { font-size: 0.95rem; }
 .list-rows .budget-icon-btn.budget-icon-btn-danger { font-size: 1.1rem; }
 
-/* SVG variant — when the button content is an inline <svg> instead of a
- * Unicode glyph, font-size is irrelevant. Size the SVG itself so the icon
- * sits visually centered inside the 28×28 box. `stroke="currentColor"` on
- * the SVG lets the danger hover-color rule (which sets `color`) re-tint
- * the stroke automatically.
+/* SVG content inside an icon-button (either .budget-icon-btn or its
+ * Net Worth twin .ah-action-btn) is sized by these rules — font-size is
+ * irrelevant once the content is an <svg>. `stroke="currentColor"` on the
+ * SVG lets the danger hover-color rule (which sets `color`) re-tint the
+ * stroke automatically.
  *
- * The Lucide pencil has more strokes / visual weight than the simple X, so
- * the edit icon (non-danger SVG) renders at 14px while the delete X stays
- * at 16px — keeps them visually balanced even though the box is identical. */
-.budget-icon-btn-svg svg {
-  width: 16px;
-  height: 16px;
-  display: block;
-}
-.budget-icon-btn-svg:not(.budget-icon-btn-danger) svg {
+ * Multi-stroke icons (pencil / check / rotate-ccw / archive-restore)
+ * carry more visual weight than the two-stroke X, so non-danger icons
+ * render slightly smaller — keeps the pair visually balanced even though
+ * the surrounding box is identical. */
+.budget-icon-btn > svg,
+.ah-action-btn > svg {
   width: 14px;
   height: 14px;
+  display: block;
+}
+.budget-icon-btn:not(.budget-icon-btn-danger) > svg,
+.ah-action-btn:not(.ah-action-danger) > svg {
+  width: 12px;
+  height: 12px;
 }
 
 .add-row {

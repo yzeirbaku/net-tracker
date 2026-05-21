@@ -28,8 +28,15 @@ async function request(method, path, body) {
   }
 
   if (res.status === 401) {
-    clearToken();
-    window.dispatchEvent(new CustomEvent("auth:signed-out"));
+    // Only clear the token on a 401 from /auth/me — that's the canonical
+    // "is your session valid" check. A 401 on any other endpoint may be a
+    // transient race (Render cold start, browser network blip, etc.); we
+    // surface it as an error but DON'T sign the user out, so a single flaky
+    // request can't wipe localStorage and force a re-login.
+    if (path === "/auth/me") {
+      clearToken();
+      window.dispatchEvent(new CustomEvent("auth:signed-out"));
+    }
     throw new Error("unauthorized");
   }
   if (res.status === 204) return null;

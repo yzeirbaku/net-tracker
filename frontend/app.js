@@ -191,6 +191,9 @@ function bindLogin() {
       });
       $("#login-paste").value = "";
       closeDialog("login-dialog");
+      // Populate the home tiles now that we're signed in — without this the
+      // home view would render whatever the signed-out version painted.
+      showView("home");
     } catch (err) {
       toast(friendlyError(err, "Sign-in failed"), "error");
     }

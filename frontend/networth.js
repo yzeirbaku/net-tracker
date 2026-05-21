@@ -305,7 +305,7 @@ function renderHtml() {
   }
   const viewToggle = hasPension
     ? `<div class="seg-group seg-pill networth-view-pills" role="tablist"
-            title="Total includes everything. Liquid applies a ${haircutPct}% haircut to pension holdings (Danish early-withdrawal tax). W/o pension excludes pension entirely.">
+            title="Total includes everything. Liquid applies a ${haircutPct}% haircut to pension holdings (Danish early-withdrawal tax). No pension excludes pension entirely.">
          <span class="seg-indicator" aria-hidden="true"></span>
          <button type="button" data-view="total" class="${
            state.activeView === "total" ? "active" : ""
@@ -315,7 +315,7 @@ function renderHtml() {
          }">Liquid</button>
          <button type="button" data-view="no_pension" class="${
            state.activeView === "no_pension" ? "active" : ""
-         }">w/o pension</button>
+         }">No pension</button>
        </div>`
     : "";
   return `
@@ -782,10 +782,71 @@ function bindViewPills(root) {
   root.querySelectorAll(".networth-view-pills button").forEach((btn) => {
     btn.addEventListener("click", () => {
       state.activeView = btn.dataset.view;
-      root.innerHTML = renderHtml();
-      afterRender(root);
+      const group = btn.closest(".networth-view-pills");
+      // Toggle .active in-place (no full re-render) so the .seg-indicator
+      // element survives the click and its CSS transition can animate the
+      // slide. A root.innerHTML rewrite would destroy the indicator and
+      // the new one would snap into place — see positionSegIndicator's
+      // .is-ready first-time guard.
+      group.querySelectorAll("button").forEach((b) =>
+        b.classList.toggle("active", b === btn),
+      );
+      positionSegIndicator(group);
+      applyViewToDom(root);
     });
   });
+}
+
+/**
+ * Update everything that depends on state.activeView without re-rendering
+ * the whole root. Keeps the .seg-indicator alive across clicks so the
+ * sliding transition fires — matches the in-place pattern used by the
+ * theme toggle in settings.js.
+ */
+function applyViewToDom(root) {
+  const top = topTotalForView();
+  const totalEl = root.querySelector(".networth-total-value");
+  if (totalEl) totalEl.textContent = fmtDKK(top);
+  const eurEl = root.querySelector(".networth-total-value-eur");
+  if (eurEl) eurEl.textContent = `≈ ${fmtEUR(top)}`;
+  const deltaEl = root.querySelector(".networth-delta");
+  if (deltaEl) {
+    const d = activeDelta();
+    const num = d ? Number(activeDeltaValue(d)) : 0;
+    deltaEl.classList.toggle("networth-delta-neg", num < 0);
+    deltaEl.classList.toggle("networth-delta-pos", num >= 0);
+    if (state.deltas.length && d && d.anchor_date !== state.as_of) {
+      const sign = num >= 0 ? "+" : "−";
+      const value = fmtDKK(Math.abs(num));
+      const prefix = d.is_since_start ? "since start: " : "";
+      deltaEl.textContent = `${prefix}${sign}${value}`;
+    } else {
+      deltaEl.textContent = "";
+    }
+  }
+  // Charts always destroy-and-recreate, so just call them again with the
+  // new state — no extra cleanup needed.
+  renderMainChart();
+  renderDonut();
+  updateDonutLegend(root);
+}
+
+function updateDonutLegend(root) {
+  const ul = root.querySelector(".donut-legend");
+  if (!ul) return;
+  ul.innerHTML = compositionForView()
+    .map(
+      (c) => `
+        <li class="donut-legend-row">
+          <span class="donut-legend-dot" style="background:${
+            ASSET_CLASS_COLORS[c.asset_class] || "#999"
+          }"></span>
+          <span class="donut-legend-name">${escapeHtml(c.asset_class)}</span>
+          <span class="donut-legend-value">${fmtDKK(c.value_dkk)}</span>
+          <span class="donut-legend-pct">${(c.pct * 100).toFixed(1)}%</span>
+        </li>`,
+    )
+    .join("");
 }
 
 function positionSegIndicator(group) {

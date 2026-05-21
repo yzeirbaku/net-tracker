@@ -1,8 +1,8 @@
 # net-tracker
 
-Personal-finance PWA for managing a monthly budget, analyzing bank-export spending, and tracking net worth over time. Single-user, magic-link auth.
+Personal-finance PWA for managing a monthly budget and tracking net worth over time. Single-user, magic-link auth.
 
-**Status:** Plans 1 (foundation), 2 (Net Worth), 3 (Budget) shipped. Spending is still a stub awaiting Plan 4.
+**Status:** Plans 1 (foundation), 2 (Net Worth), 3 (Budget) shipped, plus a composite Home dashboard. Plan 4 (Spending / Danske CSV / merchant rules) was scrapped.
 
 See [CLAUDE.md](./CLAUDE.md) for the project overview.
 
@@ -10,11 +10,17 @@ See [CLAUDE.md](./CLAUDE.md) for the project overview.
 
 - Magic-link sign-in (Resend, opaque-bearer sessions in `localStorage`, 90-day sliding TTL).
 - Settings → accounts + categories CRUD with unique per-user color enforcement.
+- Home dashboard:
+  - Net worth hero tile (gradient headline, EUR readout, 1M delta, 30-day stepped-area sparkline).
+  - Composition strip — stacked horizontal bar by asset class with a percentage legend.
+  - Current-month budget tile (free money in green/red, gradient progress, `spent of planned · ticked` counts).
+  - Next-up tile (3 largest unticked items, sorted desc, each with a colored category dot).
+  - All tiles read-only; taps deep-link to the source view. Composes the existing `/networth` and `/budget/months/{ym}` endpoints — no Home-specific backend.
 - Net Worth view:
   - Per-account balance-entry history (manual, wealth-accounts only).
   - Total + composition donut by asset class (Cash / Stocks / Crypto / Precious Metals / Pension / Other).
   - Total net-worth chart over time (Chart.js stepped area), 1M / 3M / 6M / 1Y / ALL period pills with deltas.
-  - Global **Total / Liquid / No pension** toggle (shown when the portfolio holds pension): Liquid applies the Danish 60% pension early-withdrawal haircut; No pension drops the Pension slice entirely and renormalizes composition. Selection slides the pill indicator and updates the headline, EUR readout, period delta, line chart, and donut in-place.
+  - Global **Total / Liquid / No pension** toggle (shown when the portfolio holds pension): Liquid applies the Danish 60% pension early-withdrawal haircut; No pension drops the Pension slice entirely and renormalizes composition. Selection slides the pill indicator and updates the headline, EUR readout, period delta, line chart, and donut in-place. Persists across reloads under `localStorage["net-tracker.networth.view-mode"]` — Home reflects it too.
   - Supplementary `≈ X eur` line under the headline DKK total, ERM II peg (7.46038 DKK/EUR).
   - "First entry is the cutoff" invariant — once an account has a balance entry, nothing earlier can be inserted.
 - Budget view:
@@ -28,6 +34,7 @@ See [CLAUDE.md](./CLAUDE.md) for the project overview.
   - Past months can't be stamped (current calendar month + future only).
   - Archive locks a month read-only; unlock with one click in the Archive view.
   - Multi-select category picker shared between month + template flows.
+  - CSV-export icon in the month-nav row downloads `budget-YYYY-MM.csv` (UTF-8 with BOM, columns: Category / Item / Planned / Remaining / Ticked / Ticked at) — generated entirely in the browser, no new endpoint.
 - Custom themed primitives (Monday-first day picker, month picker, popup color picker with auto-disabled taken hues, themed checkboxes, dialogs, dropdowns).
 - Loading-card spinner with a unified "Connecting…" message on every view so the page is never blank while the backend cold-starts.
 

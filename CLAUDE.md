@@ -1,22 +1,23 @@
 # net-tracker — Claude guide
 
-Personal-finance PWA. Single-user, magic-link auth. Three subsystems (Budget / Spending / Net Worth) + a Home dashboard, all sharing a single category taxonomy. Stack modeled on `gold-bar-tracker` (sibling repo) — FastAPI on Render, vanilla-JS PWA on Cloudflare Pages, Neon Postgres, Resend for magic-link email.
+Personal-finance PWA. Single-user, magic-link auth. Two live subsystems (Budget / Net Worth) + a Home dashboard, all sharing a single category taxonomy. Stack modeled on `gold-bar-tracker` (sibling repo) — FastAPI on Render, vanilla-JS PWA on Cloudflare Pages, Neon Postgres, Resend for magic-link email.
 
-**Plans 1, 2, 3 shipped** (auth, accounts/categories CRUD, Net Worth, Budget). Plans 4 (Spending/CSV), 5 (Envelopes) and the Home dashboard are not built yet — see `docs/superpowers/specs/2026-05-18-net-tracker-design.md` for the original design and `docs/superpowers/specs/2026-05-20-budget-plan-3-design.md` for the Plan 3 spec.
+**Plans 1, 2, 3 + Home dashboard shipped** (auth, accounts/categories CRUD, Net Worth, Budget, Home). Plan 5 (Envelopes) is not built; Plan 4 (Spending/CSV) was scrapped — see `docs/superpowers/specs/2026-05-21-home-dashboard-design.md` for the cleanup. Original design lives in `docs/superpowers/specs/2026-05-18-net-tracker-design.md`; the Plan 3 spec is `docs/superpowers/specs/2026-05-20-budget-plan-3-design.md`.
 
 ## Git
 
 All commits in this repo must be authored as `yzeirbaku@hotmail.com` (name: `Yzeir Baku`). Already set in the local config — verify with `git config user.email` before committing if anything looks off. Co-author trailers from Claude Code are fine; the *author* must remain the hotmail address.
 
-## Five views
+## Four views
 
 Side-drawer nav, same shell pattern as gold-bar-tracker:
 
-- **Home** — future composite dashboard. Currently a stub showing "Welcome" / "Please sign in" depending on session state.
-- **Budget** — live. Persistent template (one draft + N labelled snapshots) stamped into per-month plans with checkable items. Past months can't be stamped; archive locks a month read-only.
-- **Spending** — stub. Plan 4 turns this into Danske-CSV-driven retrospective analysis + the merchant-rules engine + put-aside envelopes.
-- **Net Worth** — live. Manually-entered balances per wealth account, total-over-time chart, composition donut, period deltas, global Total/Liquid toggle.
-- **Settings** — live. Sign in/out, theme toggle, accounts CRUD, categories CRUD. Merchant rules + envelopes managers wait for Plans 4 & 5.
+- **Home** — daily landing screen. Hero tile (net worth headline, EUR readout, 1M delta, 30-day sparkline) + composition strip (asset-class stacked bar with legend) + current-month budget tile (free money, gradient progress, ticked counts) + next-up tile (3 largest unticked items). All tiles are read-only — taps deep-link to the source view. Composes `/networth?range_from=today-30d` and `/budget/months/{ym}` in parallel; no Home-specific backend code.
+- **Budget** — live. Persistent template (one draft + N labelled snapshots) stamped into per-month plans with checkable items. Past months can't be stamped; archive locks a month read-only. CSV-export icon in the month-nav row builds a UTF-8-with-BOM CSV in the browser from the already-loaded payload.
+- **Net Worth** — live. Manually-entered balances per wealth account, total-over-time chart, composition donut, period deltas, global Total/Liquid/No-pension toggle. Toggle choice persists across reloads under `localStorage["net-tracker.networth.view-mode"]` and Home's hero + composition strip reflect it.
+- **Settings** — live. Sign in/out, theme toggle, accounts CRUD, categories CRUD.
+
+(Spending was a planned fifth view — Plan 4 / Danske CSV / merchant-rules. Cancelled. Menu entry, view section, and `frontend/spending.js` were deleted; the `kind = 'spending'` account flavor stays in the schema since it's still relevant to net-worth exclusion logic.)
 
 ## Account kinds
 
@@ -88,6 +89,7 @@ Magic-link → opaque session bearer tokens in `localStorage` (`net-tracker.sess
 - **Hover only on pointer devices.** Every `:hover` rule on the icon-button family is wrapped in `@media (hover: hover)` so iOS Safari doesn't latch the accent border on tap and leave it "stuck." A matching `:active` rule outside the media query gives a brief tap-flash on touch (snap to accent on press, fade back over the existing 120ms `border-color` transition on release).
 - **Multi-select dialog content is recreated each open.** The category-picker dialog (and the edit-category dialog) blow away their innerHTML on each open and use `el.onclick = …` (not `addEventListener`) to wire handlers — prevents listener accumulation across re-opens. The `ensureDialog` helper caches the wrapper element only.
 - **Keyboard activation on `role="button"` / `role="link"` divs.** Any non-`<button>` clickable that uses a role attribute MUST be reachable via Enter / Space. `installBudgetClickHandler` already delegates keydown for elements with `data-budget-action`; bespoke handlers need to follow suit.
+- **Home tiles delegate navigation via menu-item clicks.** `home.js`'s `bindHomeClickThroughs` resolves `data-home-nav="<view>"` by dispatching a synthetic click on the matching `.menu-item[data-action="<view>"]` rather than calling `showView` directly. Keeps navigation routing in one place (`app.js`).
 
 ## Conventions
 

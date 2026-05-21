@@ -21,6 +21,10 @@ See [CLAUDE.md](./CLAUDE.md) for the project overview.
   - Persistent template (one editable draft + N labelled read-only snapshots / "versions" of past template states).
   - Monthly plans stamped from the current draft as deep-copies — edits to the template never bleed back into a stamped month, and vice versa.
   - Items inside each category with a tick lifecycle: `planned_dkk` + `remaining_dkk` + `ticked_at`. Tick zeroes remaining; untick restores; partial-pay flow auto-ticks when remaining hits zero.
+  - Sort dropdown (Amount-desc / A→Z, localStorage-persisted) reorders categories + items live on the month view, and bakes destructively into the template on Save / Save new version so future stamps inherit the order.
+  - Total planned / Salary / Free money footer on month, template, and version views — Free money paints green or red depending on sign.
+  - Collapsible category heads on both month and template views (caret flips ▾↔▸); collapsed state persists in localStorage.
+  - Amount inputs live-format with dot-thousands as you type ("20000" → "20.000"), cursor preserved.
   - Past months can't be stamped (current calendar month + future only).
   - Archive locks a month read-only; unlock with one click in the Archive view.
   - Multi-select category picker shared between month + template flows.

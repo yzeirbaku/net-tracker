@@ -247,7 +247,8 @@ async def patch_template(
             "FROM budget_templates WHERE id = $1",
             draft["id"],
         )
-    assert refreshed is not None
+    if refreshed is None:
+        raise HTTPException(status_code=500, detail="template_missing_after_update")
     return _template_out(refreshed, categories)
 
 
@@ -387,7 +388,8 @@ async def _version_summary(
         "GROUP BY t.id",
         version_id,
     )
-    assert row is not None
+    if row is None:
+        raise HTTPException(status_code=500, detail="version_missing_after_insert")
     return BudgetTemplateVersionSummary(
         id=row["id"],
         label=row["label"],
@@ -705,7 +707,10 @@ async def add_month_category(
             "WHERE bmc.id = $1",
             new_id,
         )
-    assert row is not None
+    if row is None:
+        raise HTTPException(
+            status_code=500, detail="month_category_missing_after_insert"
+        )
     return BudgetMonthCategoryOut(
         id=row["id"],
         category_id=row["category_id"],
@@ -827,7 +832,8 @@ async def add_month_item(
             ticked_at,
             next_item_sort,
         )
-    assert row is not None
+    if row is None:
+        raise HTTPException(status_code=500, detail="item_missing_after_insert")
     return BudgetMonthItemOut(
         id=row["id"],
         name=row["name"],
@@ -925,7 +931,8 @@ async def patch_month_item(
             new_ticked_at,
             item_id,
         )
-    assert row is not None
+    if row is None:
+        raise HTTPException(status_code=500, detail="item_missing_after_update")
     return BudgetMonthItemOut(
         id=row["id"],
         name=row["name"],

@@ -905,13 +905,16 @@ dialog menu button[value="save"].dialog-danger-confirm {
 
 .networth-view-pills {
   margin: 0 auto 0.9rem;
-  max-width: 220px;
+  /* Three buttons (Total / Liquid / w/o pension) need more horizontal
+   * room than the original two-option pill — the "w/o pension" label is
+   * about twice as long as the others. */
+  max-width: 320px;
   padding: 3px;
   cursor: help;
 }
 
 .networth-view-pills button {
-  padding: 0.28rem 0.8rem;
+  padding: 0.28rem 0.7rem;
   font-size: 0.82rem;
 }
 

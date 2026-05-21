@@ -204,13 +204,35 @@ function activeDelta() {
 }
 
 /**
- * Composition slices for the currently-selected view ('total' or 'liquid').
- * In 'liquid' mode the Pension slice is scaled down by the haircut rate;
- * percentages are recomputed against the new total so they still sum to 1.
+ * Pension value at a single series point, derived from the (total, liquid)
+ * pair the backend ships. Since liquid = total - pension * haircut, we can
+ * recover pension = (total - liquid) / haircut without a separate field.
+ * Returns 0 when the haircut rate is 0 to avoid a divide-by-zero.
+ */
+function pensionAt(point) {
+  const haircut = Number(state.pension_haircut_rate);
+  if (haircut === 0) return 0;
+  return (Number(point.total_dkk) - Number(point.liquid_dkk)) / haircut;
+}
+
+/**
+ * Composition slices for the currently-selected view.
+ *  - 'total'      → backend composition as-is.
+ *  - 'liquid'     → Pension slice scaled by (1 - haircut); pcts renormalized.
+ *  - 'no_pension' → Pension slice dropped entirely; pcts renormalized over
+ *                   the remaining asset classes.
  */
 function compositionForView() {
   if (state.activeView === "total" || state.composition.length === 0) {
     return state.composition;
+  }
+  if (state.activeView === "no_pension") {
+    const filtered = state.composition.filter((c) => c.asset_class !== "Pension");
+    const subtotal = filtered.reduce((sum, c) => sum + Number(c.value_dkk), 0);
+    if (subtotal === 0) return filtered.map((c) => ({ ...c, pct: 0 }));
+    return filtered
+      .map((c) => ({ ...c, pct: Number(c.value_dkk) / subtotal }))
+      .sort((a, b) => Number(b.value_dkk) - Number(a.value_dkk));
   }
   const haircut = Number(state.pension_haircut_rate);
   const adjusted = state.composition.map((c) => {
@@ -226,15 +248,35 @@ function compositionForView() {
 }
 
 function topTotalForView() {
-  return state.activeView === "liquid" ? state.liquid_dkk : state.total_dkk;
+  if (state.activeView === "liquid") return state.liquid_dkk;
+  if (state.activeView === "no_pension") {
+    return Number(state.total_dkk) - Number(state.pension_total_dkk);
+  }
+  return state.total_dkk;
 }
 
 function activeDeltaValue(d) {
-  return state.activeView === "liquid" ? d.delta_liquid_dkk : d.delta_dkk;
+  if (state.activeView === "liquid") return d.delta_liquid_dkk;
+  if (state.activeView === "no_pension") {
+    // delta_no_pension = delta_total - delta_pension, where
+    // delta_pension is recoverable from the total/liquid delta pair using
+    // the same identity as pensionAt(): pension = (total - liquid)/haircut.
+    const haircut = Number(state.pension_haircut_rate);
+    const deltaTotal = Number(d.delta_dkk);
+    const deltaLiquid = Number(d.delta_liquid_dkk);
+    if (haircut === 0) return deltaTotal;
+    const deltaPension = (deltaTotal - deltaLiquid) / haircut;
+    return deltaTotal - deltaPension;
+  }
+  return d.delta_dkk;
 }
 
 function seriesValueForView(point) {
-  return state.activeView === "liquid" ? point.liquid_dkk : point.total_dkk;
+  if (state.activeView === "liquid") return point.liquid_dkk;
+  if (state.activeView === "no_pension") {
+    return Number(point.total_dkk) - pensionAt(point);
+  }
+  return point.total_dkk;
 }
 
 function renderHtml() {
@@ -263,7 +305,7 @@ function renderHtml() {
   }
   const viewToggle = hasPension
     ? `<div class="seg-group seg-pill networth-view-pills" role="tablist"
-            title="Liquid applies a ${haircutPct}% haircut to pension holdings, reflecting Danish early-withdrawal tax.">
+            title="Total includes everything. Liquid applies a ${haircutPct}% haircut to pension holdings (Danish early-withdrawal tax). W/o pension excludes pension entirely.">
          <span class="seg-indicator" aria-hidden="true"></span>
          <button type="button" data-view="total" class="${
            state.activeView === "total" ? "active" : ""
@@ -271,6 +313,9 @@ function renderHtml() {
          <button type="button" data-view="liquid" class="${
            state.activeView === "liquid" ? "active" : ""
          }">Liquid</button>
+         <button type="button" data-view="no_pension" class="${
+           state.activeView === "no_pension" ? "active" : ""
+         }">w/o pension</button>
        </div>`
     : "";
   return `

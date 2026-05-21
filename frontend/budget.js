@@ -264,9 +264,9 @@ async function renderMonthView(root) {
         actions: headerActions,
       })}
       <div class="budget-month-picker-row">
-        <button type="button" class="budget-nav" data-budget-action="prev-month" aria-label="Previous month">‹</button>
+        <button type="button" class="budget-nav" data-budget-action="prev-month" aria-label="Previous month"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m15 18-6-6 6-6"/></svg></button>
         <div id="budget-month-picker-mount" class="budget-month-picker-mount"></div>
-        <button type="button" class="budget-nav" data-budget-action="next-month" aria-label="Next month">›</button>
+        <button type="button" class="budget-nav" data-budget-action="next-month" aria-label="Next month"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m9 18 6-6-6-6"/></svg></button>
       </div>
       ${
         monthExists

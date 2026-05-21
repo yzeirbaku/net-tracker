@@ -1077,11 +1077,18 @@ dialog menu button[value="save"].dialog-danger-confirm {
   transition: background 120ms ease, border-color 120ms ease, color 120ms ease;
 }
 
-.ah-action-btn:hover { border-color: var(--accent); }
+/* :hover rules wrapped in @media (hover: hover) so iOS Safari doesn't
+ * latch the green/red accent on tap and leave it "stuck" until the user
+ * taps elsewhere. The pseudo-class still fires on real pointer devices. */
+@media (hover: hover) {
+  .ah-action-btn:hover { border-color: var(--accent); }
+}
 /* × renders a touch smaller than the ✎ next to it — small bump so they
  * visually balance. Same reasoning as .budget-icon-btn-danger. */
 .ah-action-danger { font-size: 1.1rem; }
-.ah-action-danger:hover { background: var(--danger-soft); border-color: var(--danger); color: var(--danger); }
+@media (hover: hover) {
+  .ah-action-danger:hover { background: var(--danger-soft); border-color: var(--danger); color: var(--danger); }
+}
 
 .ah-empty { padding: 1rem 0; text-align: center; }
 
@@ -1352,7 +1359,18 @@ dialog menu button[value="save"].dialog-danger-confirm {
   justify-content: center;
 }
 
-.budget-nav:hover { border-color: var(--accent); }
+@media (hover: hover) {
+  .budget-nav:hover { border-color: var(--accent); }
+}
+
+/* Month-nav chevrons are SVGs sized a touch larger than the row-affordance
+ * icons because the surrounding .budget-nav box is 32×32 (vs 28×28 for the
+ * row buttons). */
+.budget-nav > svg {
+  width: 18px;
+  height: 18px;
+  display: block;
+}
 
 .budget-empty {
   text-align: center;
@@ -1438,7 +1456,9 @@ dialog menu button[value="save"].dialog-danger-confirm {
   justify-self: end;       /* stay flush-right inside a grid cell */
   transition: background 120ms ease, border-color 120ms ease, color 120ms ease;
 }
-.budget-icon-btn:hover { border-color: var(--accent); }
+@media (hover: hover) {
+  .budget-icon-btn:hover { border-color: var(--accent); }
+}
 .budget-icon-btn:focus-visible {
   outline: 2px solid var(--accent-strong);
   outline-offset: 2px;
@@ -1450,10 +1470,12 @@ dialog menu button[value="save"].dialog-danger-confirm {
 .budget-icon-btn-danger {
   font-size: 1.25rem;
 }
-.budget-icon-btn-danger:hover {
-  background: var(--danger-soft);
-  border-color: var(--danger);
-  color: var(--danger);
+@media (hover: hover) {
+  .budget-icon-btn-danger:hover {
+    background: var(--danger-soft);
+    border-color: var(--danger);
+    color: var(--danger);
+  }
 }
 
 .budget-categories { display: flex; flex-direction: column; gap: 0.4rem; }

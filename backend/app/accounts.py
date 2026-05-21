@@ -10,6 +10,7 @@ from __future__ import annotations
 
 from uuid import UUID
 
+import asyncpg
 from fastapi import APIRouter, Depends, HTTPException, Response
 
 from app import db
@@ -17,6 +18,10 @@ from app.auth_session import require_session
 from app.models import AccountCreate, AccountKind, AccountOut, AccountUpdate
 
 router = APIRouter(prefix="/accounts", tags=["accounts"])
+
+_UNIQUE_VIOLATIONS = {
+    "accounts_user_id_name_key": "account_name_taken",
+}
 
 
 @router.get("", response_model=list[AccountOut])
@@ -53,10 +58,11 @@ async def create_account(
                 payload.asset_class.value if payload.asset_class else None,
                 payload.sort_order,
             )
-        except Exception as e:
-            if "accounts_user_id_name_key" in str(e):
-                raise HTTPException(status_code=409, detail="account_name_taken") from e
-            raise
+        except asyncpg.UniqueViolationError as e:
+            code = db.classify_unique_violation(e, _UNIQUE_VIOLATIONS)
+            if code is None:
+                raise
+            raise HTTPException(status_code=409, detail=code) from e
     return AccountOut(**dict(row))
 
 
@@ -108,10 +114,11 @@ async def update_account(
                 account_id,
                 session["user_id"],
             )
-        except Exception as e:
-            if "accounts_user_id_name_key" in str(e):
-                raise HTTPException(status_code=409, detail="account_name_taken") from e
-            raise
+        except asyncpg.UniqueViolationError as e:
+            code = db.classify_unique_violation(e, _UNIQUE_VIOLATIONS)
+            if code is None:
+                raise
+            raise HTTPException(status_code=409, detail=code) from e
     return AccountOut(**dict(updated))
 
 

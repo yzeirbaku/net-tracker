@@ -15,6 +15,29 @@ import asyncpg
 _pool: asyncpg.Pool[Any] | None = None
 
 
+def classify_unique_violation(
+    e: asyncpg.UniqueViolationError, mappings: dict[str, str]
+) -> str | None:
+    """Map an asyncpg unique-violation to a snake_case error code.
+
+    `mappings` is `{constraint_or_index_name: error_code}`. We check
+    `e.constraint_name` first (cheap + reliable on modern Postgres), then
+    fall back to scanning the error message — the partial unique INDEX case
+    doesn't always populate `constraint_name`, so the message scan covers us.
+
+    Returns None when the violation doesn't belong to any known constraint;
+    callers should re-raise in that case.
+    """
+    cname = getattr(e, "constraint_name", None) or ""
+    if cname in mappings:
+        return mappings[cname]
+    msg = str(e)
+    for name, code in mappings.items():
+        if name in msg:
+            return code
+    return None
+
+
 SCHEMA_SQL = """
 CREATE EXTENSION IF NOT EXISTS "pgcrypto";
 

@@ -200,13 +200,13 @@ function topUntickedItems(month, limit = 3) {
       if (!isTicked) {
         out.push({
           name: it.name,
-          planned: Number(it.planned_dkk),
+          remaining: r,
           color: cat.category_color || "#22c55e",
         });
       }
     }
   }
-  out.sort((a, b) => b.planned - a.planned);
+  out.sort((a, b) => b.remaining - a.remaining);
   return out.slice(0, limit);
 }
 
@@ -219,7 +219,7 @@ function renderNextUpTile(month) {
         <span class="home-dot" style="background:${it.color}"></span>
         ${escapeHtml(it.name)}
       </span>
-      <span class="home-next-amount">${fmtDot(it.planned)}</span>
+      <span class="home-next-amount">${fmtDot(it.remaining)}</span>
     </div>
   `).join("");
   return `

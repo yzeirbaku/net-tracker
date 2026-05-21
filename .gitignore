@@ -34,3 +34,6 @@ docs/superpowers/
 
 # Dev-stack runtime state (pids.json, log files)
 .dev/
+
+# Superpowers brainstorm companion artifacts (HTML mockups, session state)
+.superpowers/

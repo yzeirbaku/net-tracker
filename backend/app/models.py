@@ -223,3 +223,218 @@ class AccountHistoryEntry(BaseModel):
 class AccountHistoryOut(BaseModel):
     account: AccountHistoryAccountInfo
     entries: list[AccountHistoryEntry]
+
+
+# ── Budget (Plan 3) ──────────────────────────────────────────────────────
+
+
+class BudgetTemplateItemPatch(BaseModel):
+    """One item inside a category, in a PATCH /budget/template payload."""
+
+    name: Annotated[str, Field(min_length=1, max_length=200)]
+    planned_dkk: Decimal
+    sort_order: int = 0
+
+    @field_validator("name")
+    @classmethod
+    def _validate_name(cls, v: str) -> str:
+        return _strip_nonempty(v)
+
+    @field_validator("planned_dkk")
+    @classmethod
+    def _non_negative_planned(cls, v: Decimal) -> Decimal:
+        if v < 0:
+            raise ValueError("planned_dkk must be >= 0")
+        return v
+
+
+class BudgetTemplateCategoryPatch(BaseModel):
+    """One category in a PATCH /budget/template payload."""
+
+    category_id: UUID
+    sort_order: int = 0
+    items: list[BudgetTemplateItemPatch] = Field(default_factory=list)
+
+
+class BudgetTemplatePatch(BaseModel):
+    """Bulk replace the draft (or a version, indirectly via version-snapshot
+    of a patched draft)."""
+
+    salary_dkk: Decimal = Decimal("0")
+    categories: list[BudgetTemplateCategoryPatch] = Field(default_factory=list)
+
+    @field_validator("salary_dkk")
+    @classmethod
+    def _non_negative_salary(cls, v: Decimal) -> Decimal:
+        if v < 0:
+            raise ValueError("salary_dkk must be >= 0")
+        return v
+
+
+class BudgetTemplateItemOut(BaseModel):
+    id: UUID
+    name: str
+    planned_dkk: Decimal
+    sort_order: int
+
+
+class BudgetTemplateCategoryOut(BaseModel):
+    id: UUID
+    category_id: UUID
+    category_name: str
+    category_color: str | None
+    sort_order: int
+    items: list[BudgetTemplateItemOut]
+
+
+class BudgetTemplateOut(BaseModel):
+    id: UUID
+    status: str
+    label: str | None
+    salary_dkk: Decimal
+    created_at: datetime
+    categories: list[BudgetTemplateCategoryOut]
+
+
+_VERSION_LABEL_MAX_LEN = 120
+
+
+class BudgetTemplateVersionCreate(BaseModel):
+    label: str | None = None
+
+    @field_validator("label")
+    @classmethod
+    def _trim_label(cls, v: str | None) -> str | None:
+        if v is None:
+            return None
+        trimmed = v.strip()
+        if not trimmed:
+            return None
+        if len(trimmed) > _VERSION_LABEL_MAX_LEN:
+            raise ValueError(f"label must be <= {_VERSION_LABEL_MAX_LEN} chars")
+        return trimmed
+
+
+class BudgetTemplateVersionSummary(BaseModel):
+    """Row in the version-history list."""
+
+    id: UUID
+    label: str | None
+    created_at: datetime
+    salary_dkk: Decimal
+    category_count: int
+    item_count: int
+
+
+# ── Budget months ────────────────────────────────────────────────────────
+
+
+class BudgetMonthItemOut(BaseModel):
+    id: UUID
+    name: str
+    planned_dkk: Decimal
+    remaining_dkk: Decimal
+    ticked_at: datetime | None
+    sort_order: int
+
+
+class BudgetMonthCategoryOut(BaseModel):
+    id: UUID
+    category_id: UUID
+    category_name: str
+    category_color: str | None
+    sort_order: int
+    items: list[BudgetMonthItemOut]
+
+
+class BudgetMonthOut(BaseModel):
+    id: UUID
+    year: int
+    month: int
+    salary_dkk: Decimal
+    archived_at: datetime | None
+    created_at: datetime
+    categories: list[BudgetMonthCategoryOut]
+
+
+class BudgetMonthSummary(BaseModel):
+    year: int
+    month: int
+    stamped_at: datetime
+    archived_at: datetime | None
+    salary_dkk: Decimal
+    planned_total_dkk: Decimal
+    spent_total_dkk: Decimal
+    items_open: int
+    items_total: int
+
+
+class BudgetMonthSalaryPatch(BaseModel):
+    salary_dkk: Decimal
+
+    @field_validator("salary_dkk")
+    @classmethod
+    def _non_negative_salary(cls, v: Decimal) -> Decimal:
+        if v < 0:
+            raise ValueError("salary_dkk must be >= 0")
+        return v
+
+
+class BudgetMonthItemCreate(BaseModel):
+    category_id: UUID
+    name: Annotated[str, Field(min_length=1, max_length=200)]
+    planned_dkk: Decimal
+    already_paid: bool = False
+
+    @field_validator("name")
+    @classmethod
+    def _validate_name(cls, v: str) -> str:
+        return _strip_nonempty(v)
+
+    @field_validator("planned_dkk")
+    @classmethod
+    def _non_negative_planned(cls, v: Decimal) -> Decimal:
+        if v < 0:
+            raise ValueError("planned_dkk must be >= 0")
+        return v
+
+
+class BudgetMonthItemPatch(BaseModel):
+    """Workhorse PATCH. Each field is optional — apply whichever subset the
+    client sent. `ticked` is the explicit-tick verb (true = tick now,
+    false = untick); `remaining_dkk` is the partial-payment verb. Both can be
+    sent in the same request."""
+
+    name: str | None = None
+    planned_dkk: Decimal | None = None
+    remaining_dkk: Decimal | None = None
+    ticked: bool | None = None
+
+    @field_validator("name")
+    @classmethod
+    def _validate_name(cls, v: str | None) -> str | None:
+        if v is None:
+            return None
+        return _strip_nonempty(v)
+
+    @field_validator("planned_dkk")
+    @classmethod
+    def _non_negative_planned(cls, v: Decimal | None) -> Decimal | None:
+        if v is None:
+            return None
+        if v < 0:
+            raise ValueError("planned_dkk must be >= 0")
+        return v
+
+    @field_validator("remaining_dkk")
+    @classmethod
+    def _non_negative_remaining(cls, v: Decimal | None) -> Decimal | None:
+        if v is None:
+            return None
+        if v < 0:
+            raise ValueError("remaining_dkk must be >= 0")
+        return v
+
+
+class BudgetMonthCategoryAdd(BaseModel):
+    category_id: UUID

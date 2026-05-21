@@ -6,7 +6,7 @@ import {
   setToken,
 } from "./shared/auth.js";
 import { closeDialog, friendlyError, openDialog, toast, withBusyButton } from "./shared/ui.js";
-import { renderBudget } from "./budget.js";
+import { renderBudget, resetBudgetSubView } from "./budget.js";
 import { renderNetWorth } from "./networth.js";
 import { renderSettings } from "./settings.js";
 import { renderSpending } from "./spending.js";
@@ -26,7 +26,7 @@ function showView(name) {
   });
   if (name === "settings") renderSettings();
   if (name === "networth") renderNetWorth();
-  if (name === "budget") renderBudget();
+  if (name === "budget") { resetBudgetSubView(); renderBudget(); }
   if (name === "spending") renderSpending();
 }
 
@@ -266,9 +266,12 @@ async function main() {
   bindSwipe();
   bindTitleClick();
   bindLogin();
+  // Reveal the Home view BEFORE the async checks so the user never stares
+  // at a blank shell while /auth/me is in flight. refreshSignedInState
+  // then flips the loading / signed-in / signed-out card inside Home.
+  showView("home");
   await tryVerify();
   await refreshSignedInState();
-  showView("home");
 }
 
 main();

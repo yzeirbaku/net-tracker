@@ -326,3 +326,214 @@ export function createDatePicker({
     },
   };
 }
+
+
+// ── Month picker ─────────────────────────────────────────────────────────
+//
+// Used by the Budget view's month navigator. Visually shares the day picker's
+// trigger + popup chrome (so the two read as the same component family) but
+// the grid shows 12 months instead of ~42 days, and the prev/next buttons
+// shift the year, not the month.
+//
+// Value shape: "yyyy-mm" (zero-padded month). Pass min/max in the same shape.
+
+const SHORT_MONTHS = [
+  "Jan", "Feb", "Mar", "Apr", "May", "Jun",
+  "Jul", "Aug", "Sep", "Oct", "Nov", "Dec",
+];
+
+function parseYM(ym) {
+  if (!ym) return null;
+  const [y, m] = ym.split("-").map(Number);
+  if (!y || !m) return null;
+  return { year: y, month: m };
+}
+
+function ymKey(year, month) {
+  return `${year}-${String(month).padStart(2, "0")}`;
+}
+
+// "yyyy-mm" → "Mmm yyyy" for the trigger label.
+function displayFromYm(ym) {
+  if (!ym) return "";
+  const parsed = parseYM(ym);
+  if (!parsed) return "";
+  return `${SHORT_MONTHS[parsed.month - 1]} ${parsed.year}`;
+}
+
+function ymCmp(a, b) {
+  // both {year, month}
+  if (a.year !== b.year) return a.year - b.year;
+  return a.month - b.month;
+}
+
+export function createMonthPicker({
+  value = null,
+  min = null,
+  max = null,
+  onChange = null,
+  ariaLabel = "",
+  placeholder = "Pick a month",
+} = {}) {
+  const root = document.createElement("div");
+  root.className = "dp mp";
+  if (ariaLabel) root.setAttribute("aria-label", ariaLabel);
+
+  let currentYm = value;
+  let minYm = min;
+  let maxYm = max;
+  let viewYear;
+
+  const trigger = document.createElement("button");
+  trigger.type = "button";
+  trigger.className = "dp-trigger";
+  trigger.setAttribute("aria-haspopup", "dialog");
+  trigger.setAttribute("aria-expanded", "false");
+
+  const popup = document.createElement("div");
+  popup.className = "dp-popup mp-popup";
+  popup.setAttribute("role", "dialog");
+
+  function syncViewToCurrent() {
+    const anchor =
+      parseYM(currentYm) ||
+      parseYM(maxYm) ||
+      (() => {
+        const t = new Date();
+        return { year: t.getFullYear(), month: t.getMonth() + 1 };
+      })();
+    viewYear = anchor.year;
+  }
+  syncViewToCurrent();
+
+  function renderTrigger() {
+    const label = currentYm ? displayFromYm(currentYm) : placeholder;
+    trigger.innerHTML =
+      `<span class="dp-trigger-label${currentYm ? "" : " dp-trigger-placeholder"}">${escapeHtml(label)}</span>` +
+      `<span class="dp-trigger-icon" aria-hidden="true">` +
+      `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="16" height="16">` +
+      `<rect x="3" y="4" width="18" height="18" rx="2"/>` +
+      `<line x1="16" y1="2" x2="16" y2="6"/>` +
+      `<line x1="8" y1="2" x2="8" y2="6"/>` +
+      `<line x1="3" y1="10" x2="21" y2="10"/>` +
+      `</svg></span>`;
+  }
+
+  function renderPopup() {
+    const minP = parseYM(minYm);
+    const maxP = parseYM(maxYm);
+    const selected = parseYM(currentYm);
+    const today = new Date();
+    const todayYM = { year: today.getFullYear(), month: today.getMonth() + 1 };
+
+    const cells = [];
+    for (let m = 1; m <= 12; m++) {
+      const cellYM = { year: viewYear, month: m };
+      const disabled =
+        (minP && ymCmp(cellYM, minP) < 0) || (maxP && ymCmp(cellYM, maxP) > 0);
+      const isCurrent = ymCmp(cellYM, todayYM) === 0;
+      const isSelected = selected && ymCmp(cellYM, selected) === 0;
+      const classes = ["dp-day", "mp-month"];
+      if (disabled) classes.push("dp-day-disabled");
+      if (isCurrent) classes.push("dp-day-today");
+      if (isSelected) classes.push("dp-day-selected");
+      cells.push({ ym: ymKey(cellYM.year, cellYM.month), label: SHORT_MONTHS[m - 1], classes, disabled });
+    }
+
+    popup.innerHTML = `
+      <div class="dp-header">
+        <button type="button" class="dp-nav" data-nav="prev" aria-label="Previous year">‹</button>
+        <div class="dp-title">${viewYear}</div>
+        <button type="button" class="dp-nav" data-nav="next" aria-label="Next year">›</button>
+      </div>
+      <div class="dp-grid mp-grid">
+        ${cells
+          .map(
+            (c) =>
+              `<button type="button" class="${c.classes.join(" ")}" data-ym="${c.ym}" ${c.disabled ? "disabled" : ""}>${c.label}</button>`,
+          )
+          .join("")}
+      </div>
+      <div class="dp-footer">
+        <button type="button" class="dp-today-btn" data-this-month>This month</button>
+      </div>
+    `;
+  }
+
+  function commit(ym, fire = true) {
+    currentYm = ym;
+    syncViewToCurrent();
+    renderTrigger();
+    if (fire && onChange) onChange(currentYm);
+  }
+
+  function open() {
+    syncViewToCurrent();
+    renderPopup();
+    root.classList.add("dp-open");
+    trigger.setAttribute("aria-expanded", "true");
+    openPicker = root;
+  }
+
+  trigger.addEventListener("click", (e) => {
+    e.stopPropagation();
+    const isOpen = root.classList.contains("dp-open");
+    closeOpen();
+    if (!isOpen) open();
+  });
+
+  function shiftYear(dir) {
+    viewYear += dir;
+    renderPopup();
+  }
+
+  popup.addEventListener("click", (e) => {
+    e.stopPropagation();
+    const navBtn = e.target.closest("[data-nav]");
+    if (navBtn) {
+      shiftYear(navBtn.dataset.nav === "prev" ? -1 : 1);
+      return;
+    }
+    if (e.target.matches("[data-this-month]")) {
+      const today = new Date();
+      const ym = ymKey(today.getFullYear(), today.getMonth() + 1);
+      const minP = parseYM(minYm);
+      const maxP = parseYM(maxYm);
+      const todayYM = { year: today.getFullYear(), month: today.getMonth() + 1 };
+      if (minP && ymCmp(todayYM, minP) < 0) return;
+      if (maxP && ymCmp(todayYM, maxP) > 0) return;
+      commit(ym);
+      closeOpen();
+      return;
+    }
+    const cellBtn = e.target.closest(".mp-month:not([disabled])");
+    if (cellBtn) {
+      commit(cellBtn.dataset.ym);
+      closeOpen();
+    }
+  });
+
+  root.appendChild(trigger);
+  root.appendChild(popup);
+  renderTrigger();
+
+  return {
+    element: root,
+    getValue: () => currentYm,
+    setValue: (ym) => commit(ym, false),
+    setMin: (ym) => {
+      minYm = ym;
+      if (root.classList.contains("dp-open")) {
+        syncViewToCurrent();
+        renderPopup();
+      }
+    },
+    setMax: (ym) => {
+      maxYm = ym;
+      if (root.classList.contains("dp-open")) {
+        syncViewToCurrent();
+        renderPopup();
+      }
+    },
+  };
+}

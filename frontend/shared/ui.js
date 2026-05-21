@@ -91,6 +91,20 @@ const _ERROR_MESSAGES = {
   invalid_token: "Sign-in link is invalid.",
   token_used: "Sign-in link has already been used.",
   token_expired: "Sign-in link has expired — request a new one.",
+  // budget.py
+  color_taken: "That color is already used by another category.",
+  not_fully_ticked: "Some items are still open — tick them off before archiving.",
+  month_archived: "This month is archived. Restore it to make changes.",
+  month_already_stamped: "This month already has a budget. Delete it before stamping again.",
+  cannot_stamp_past_month: "Past months can't be stamped. Only the current month and future months.",
+  month_not_stamped: "This month doesn't have a budget yet.",
+  template_empty: "Add at least one category to your template before stamping a month.",
+  template_version_not_found: "That template version no longer exists.",
+  category_not_found: "That category couldn't be found — it may have been removed.",
+  category_already_in_month: "That category is already in this month's budget.",
+  duplicate_category_in_template: "Each category can only appear once in the template.",
+  invalid_month: "That month isn't valid.",
+  invalid_year: "That year isn't valid.",
 };
 
 /**

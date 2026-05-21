@@ -477,7 +477,7 @@ function renderHistoryList() {
         <span class="ah-entry-date">${fmtDate(e.entry_date)}</span>
         <span class="ah-entry-value">${fmtDKK(e.value_dkk)}</span>
         <button class="ah-action-btn" data-action="edit" data-date="${e.entry_date}" data-value="${e.value_dkk}" type="button" aria-label="Edit">✎</button>
-        <button class="ah-action-btn ah-action-danger" data-action="delete" data-entry-id="${e.id}" type="button" aria-label="Delete">✕</button>
+        <button class="ah-action-btn ah-action-danger" data-action="delete" data-entry-id="${e.id}" type="button" aria-label="Delete">×</button>
       </li>`,
     )
     .join("");

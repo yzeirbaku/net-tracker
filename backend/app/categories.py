@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from uuid import UUID
 
+import asyncpg
 from fastapi import APIRouter, Depends, HTTPException, Response
 
 from app import db
@@ -11,6 +12,32 @@ from app.auth_session import require_session
 from app.models import CategoryCreate, CategoryOut, CategoryUpdate
 
 router = APIRouter(prefix="/categories", tags=["categories"])
+
+
+# Constraint / unique-index names that asyncpg surfaces on insert/update.
+# Catching by-attribute first (UniqueViolationError.constraint_name), then
+# falling back to a substring scan of the error message — the partial
+# unique INDEX for color doesn't always populate constraint_name in older
+# Postgres versions, so the fallback covers us.
+_NAME_UNIQUE = "categories_user_id_name_key"
+_COLOR_UNIQUE = "idx_categories_user_color_unique"
+
+
+def _classify_unique_violation(e: asyncpg.UniqueViolationError) -> str | None:
+    """Map an asyncpg unique-violation to a snake_case error code, or None
+    if it doesn't belong to a constraint we know how to surface."""
+    cname = getattr(e, "constraint_name", None) or ""
+    msg = str(e)
+    if _NAME_UNIQUE in (cname, msg):
+        return "category_name_taken"
+    if _COLOR_UNIQUE in (cname, msg):
+        return "color_taken"
+    # Substring fallback for the index case where constraint_name is empty.
+    if _NAME_UNIQUE in msg:
+        return "category_name_taken"
+    if _COLOR_UNIQUE in msg:
+        return "color_taken"
+    return None
 
 
 @router.get("", response_model=list[CategoryOut])
@@ -47,10 +74,11 @@ async def create_category(
                 payload.exclude_from_spend,
                 payload.sort_order,
             )
-        except Exception as e:
-            if "categories_user_id_name_key" in str(e):
-                raise HTTPException(status_code=409, detail="category_name_taken") from e
-            raise
+        except asyncpg.UniqueViolationError as e:
+            code = _classify_unique_violation(e)
+            if code is None:
+                raise
+            raise HTTPException(status_code=409, detail=code) from e
     return CategoryOut(**dict(row))
 
 
@@ -94,10 +122,11 @@ async def update_category(
                 category_id,
                 session["user_id"],
             )
-        except Exception as e:
-            if "categories_user_id_name_key" in str(e):
-                raise HTTPException(status_code=409, detail="category_name_taken") from e
-            raise
+        except asyncpg.UniqueViolationError as e:
+            code = _classify_unique_violation(e)
+            if code is None:
+                raise
+            raise HTTPException(status_code=409, detail=code) from e
     return CategoryOut(**dict(updated))
 
 

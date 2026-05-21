@@ -1,6 +1,14 @@
 import { api } from "./shared/api.js";
+import { createColorPicker, PALETTE } from "./shared/color-picker.js";
 import { createDropdown } from "./shared/dropdown.js";
-import { confirmPrompt, escapeHtml, friendlyError, toast, withBusyButton } from "./shared/ui.js";
+import {
+  blurAutoFocusedInDialog,
+  confirmPrompt,
+  escapeHtml,
+  friendlyError,
+  toast,
+  withBusyButton,
+} from "./shared/ui.js";
 import { paintViewError, paintViewLoading } from "./shared/view-loading.js";
 
 const ASSET_CLASSES = ["Cash", "Stocks", "Crypto", "Precious Metals", "Pension", "Other"];
@@ -10,15 +18,9 @@ const ACCOUNT_KINDS = [
   { value: "wealth", label: "Wealth" },
 ];
 
-const COLOR_PALETTE = [
-  "#94a3b8", "#64748b", "#ef4444",
-  "#f97316", "#f59e0b", "#eab308",
-  "#84cc16", "#22c55e", "#10b981",
-  "#14b8a6", "#06b6d4", "#0ea5e9",
-  "#3b82f6", "#6366f1", "#8b5cf6",
-  "#a855f7", "#d946ef", "#ec4899",
-];
-const DEFAULT_COLOR = "#94a3b8";
+// Default to the first palette color when creating; user can pick "no color"
+// inside the picker to clear it.
+const DEFAULT_COLOR = PALETTE[0];
 
 function kindLabel(value) {
   return ACCOUNT_KINDS.find((k) => k.value === value)?.label ?? value;
@@ -117,26 +119,9 @@ function renderHtml() {
        <div class="settings-body">
         <div class="add-row-with-color">
           <input id="cat-name" type="text" placeholder="e.g. Groceries" />
-          <div class="color-picker" id="cat-color-picker" hidden>
+          <div class="cat-color-prompt-row" id="cat-color-picker-wrap" hidden>
             <span class="color-prompt">Pick a color</span>
-            <button
-              type="button"
-              class="color-picker-trigger"
-              id="cat-color-trigger"
-              aria-haspopup="dialog"
-              aria-expanded="false"
-              aria-label="Choose color"
-              style="background: ${state.pendingCatColor}"
-            ></button>
-            <div class="color-picker-popup" id="cat-color-popup" hidden role="dialog" aria-label="Pick a color">
-              <div class="color-grid">
-                ${COLOR_PALETTE.map(
-                  (c) => `<button type="button" class="swatch${
-                    c === state.pendingCatColor ? " active" : ""
-                  }" data-color="${c}" style="background: ${c}" aria-label="Color ${c}"></button>`
-                ).join("")}
-              </div>
-            </div>
+            <div id="cat-color-mount"></div>
           </div>
           <button class="btn-primary" id="cat-add" type="button">Add</button>
         </div>
@@ -154,7 +139,10 @@ function renderHtml() {
                   c.exclude_from_spend ? ' <span class="meta">(excluded)</span>' : ""
                 }</span>
               </span>
-              <button class="row-action" data-delete-category="${c.id}" title="Delete">×</button>
+              <span style="display:flex; gap:0.4rem">
+                <button class="row-action" data-edit-category="${c.id}" title="Edit">✎</button>
+                <button class="row-action" data-delete-category="${c.id}" title="Delete">×</button>
+              </span>
             </li>`
                   )
                   .join("")
@@ -221,15 +209,27 @@ function renderHtml() {
 }
 
 function mountDropdowns() {
-  const mount = document.getElementById("acct-asset-mount");
-  if (!mount) return;
-  const dd = createDropdown({
-    options: ASSET_CLASSES.map((a) => ({ value: a, label: a })),
-    value: state.pendingAcctAsset,
-    ariaLabel: "Asset type",
-    onChange: (v) => { state.pendingAcctAsset = v; },
-  });
-  mount.replaceChildren(dd.element);
+  const assetMount = document.getElementById("acct-asset-mount");
+  if (assetMount) {
+    const dd = createDropdown({
+      options: ASSET_CLASSES.map((a) => ({ value: a, label: a })),
+      value: state.pendingAcctAsset,
+      ariaLabel: "Asset type",
+      onChange: (v) => { state.pendingAcctAsset = v; },
+    });
+    assetMount.replaceChildren(dd.element);
+  }
+
+  const colorMount = document.getElementById("cat-color-mount");
+  if (colorMount) {
+    const taken = state.categories.map((c) => c.color).filter(Boolean);
+    const picker = createColorPicker({
+      value: state.pendingCatColor,
+      takenColors: taken,
+      onChange: (hex) => { state.pendingCatColor = hex; },
+    });
+    colorMount.replaceChildren(picker.element);
+  }
 }
 
 function syncAssetVisibility() {
@@ -238,13 +238,15 @@ function syncAssetVisibility() {
   field.hidden = state.pendingAcctKind !== "wealth";
 }
 
+/**
+ * Hide the color picker row until the user starts typing a name —
+ * matches the gold-bar pattern: form clues appear progressively.
+ */
 function syncColorPickerVisibility() {
-  const picker = document.getElementById("cat-color-picker");
+  const wrap = document.getElementById("cat-color-picker-wrap");
   const input = document.getElementById("cat-name");
-  if (!picker || !input) return;
-  const hasName = input.value.trim().length > 0;
-  picker.hidden = !hasName;
-  if (!hasName) closeColorPopup();
+  if (!wrap || !input) return;
+  wrap.hidden = input.value.trim().length === 0;
 }
 
 /**
@@ -256,22 +258,6 @@ function syncAddButtonState(inputId, buttonId) {
   const btn = document.getElementById(buttonId);
   if (!input || !btn) return;
   btn.disabled = input.value.trim().length === 0;
-}
-
-function openColorPopup() {
-  const popup = document.getElementById("cat-color-popup");
-  const trigger = document.getElementById("cat-color-trigger");
-  if (!popup || !trigger) return;
-  popup.hidden = false;
-  trigger.setAttribute("aria-expanded", "true");
-}
-
-function closeColorPopup() {
-  const popup = document.getElementById("cat-color-popup");
-  const trigger = document.getElementById("cat-color-trigger");
-  if (!popup || !trigger) return;
-  popup.hidden = true;
-  trigger.setAttribute("aria-expanded", "false");
 }
 
 function keepOpen(section) {
@@ -364,7 +350,7 @@ function bindHandlers() {
     btn.addEventListener("click", () => setTheme(btn.dataset.themeValue));
   });
 
-  // Category name input controls color picker visibility AND the
+  // Category name input drives both the color picker visibility AND the
   // Add button's disabled state.
   const nameInput = document.getElementById("cat-name");
   if (nameInput) {
@@ -385,37 +371,8 @@ function bindHandlers() {
   syncAddButtonState("acct-name", "acct-add");
 
   // Color picker trigger toggles the popup
-  const trigger = document.getElementById("cat-color-trigger");
-  const popup = document.getElementById("cat-color-popup");
-  if (trigger && popup) {
-    trigger.addEventListener("click", (e) => {
-      e.stopPropagation();
-      if (popup.hidden) openColorPopup();
-      else closeColorPopup();
-    });
-    popup.addEventListener("click", (e) => {
-      e.stopPropagation();
-      const btn = e.target.closest(".swatch");
-      if (!btn) return;
-      state.pendingCatColor = btn.dataset.color;
-      trigger.style.background = state.pendingCatColor;
-      popup.querySelectorAll(".swatch").forEach((s) => {
-        s.classList.toggle("active", s === btn);
-      });
-      closeColorPopup();
-    });
-    document.addEventListener("click", (e) => {
-      if (popup.hidden) return;
-      if (popup.contains(e.target)) return;
-      if (trigger.contains(e.target)) return;
-      closeColorPopup();
-    });
-    document.addEventListener("keydown", (e) => {
-      if (e.key === "Escape" && !popup.hidden) closeColorPopup();
-    });
-  }
-
-  // Category add
+  // Category add — color comes from state.pendingCatColor, kept in sync by
+  // the createColorPicker mount in mountDropdowns().
   document.getElementById("cat-add").addEventListener("click", async (e) => {
     const input = document.getElementById("cat-name");
     const name = input.value.trim();
@@ -425,18 +382,28 @@ function bindHandlers() {
         api.post("/categories", { name, color: state.pendingCatColor }),
       );
       input.value = "";
+      // Roll forward to the next unused palette color so the next category
+      // gets a different default — the picker still lets the user override.
+      const used = new Set(state.categories.map((c) => c.color));
+      const next = PALETTE.find((c) => !used.has(c)) || PALETTE[0];
+      state.pendingCatColor = next;
       await renderSettings();
       keepOpen("categories");
     } catch (err) {
       toast(friendlyError(err, "Couldn't add category"), "error");
     }
   });
+
+  document.querySelectorAll("[data-edit-category]").forEach((btn) => {
+    btn.addEventListener("click", () => openEditCategoryDialog(btn.dataset.editCategory));
+  });
+
   document.querySelectorAll("[data-delete-category]").forEach((btn) => {
     btn.addEventListener("click", async () => {
       const id = btn.dataset.deleteCategory;
       const ok = await confirmPrompt({
         title: "Delete category?",
-        message: "This removes the category. Transactions categorized with it will become uncategorized.",
+        message: "This removes the category from your budget template and from any stamped month that uses it (including their items). Transactions categorized with it become uncategorized. Cannot be undone.",
         okLabel: "Delete",
       });
       if (!ok) return;
@@ -489,4 +456,107 @@ function bindHandlers() {
       }
     });
   });
+}
+
+// ── Edit category dialog ───────────────────────────────────────────────
+
+async function openEditCategoryDialog(categoryId) {
+  // Re-fetch /categories so the taken-color set is fresh (covers the case
+  // where another tab or a recent edit changed assignments since the
+  // settings list was rendered).
+  let cats = state.categories;
+  try {
+    cats = await api.get("/categories");
+    state.categories = cats;
+  } catch {
+    // Fall back to the cached list — still usable.
+  }
+  const cat = cats.find((c) => c.id === categoryId);
+  if (!cat) return;
+
+  // Recreate the dialog content fresh each open — avoids stale handlers
+  // on a reused DOM. Same pattern as the budget add-category dialog.
+  let dlg = document.getElementById("edit-category-dialog");
+  if (!dlg) {
+    dlg = document.createElement("dialog");
+    dlg.id = "edit-category-dialog";
+    document.body.appendChild(dlg);
+  }
+
+  const takenSet = new Set(
+    cats.filter((c) => c.id !== cat.id && c.color).map((c) => c.color),
+  );
+  const visiblePalette = PALETTE.filter((hex) => {
+    const isCurrent = cat.color && hex.toLowerCase() === cat.color.toLowerCase();
+    return isCurrent || !takenSet.has(hex);
+  });
+
+  let pickedColor = cat.color || visiblePalette[0] || null;
+
+  const swatchHtml = (hex, isActive) =>
+    `<button type="button" class="inline-swatch${isActive ? " active" : ""}" data-color="${escapeHtml(hex)}" style="background: ${escapeHtml(hex)}" title="Color ${escapeHtml(hex)}" aria-label="Color ${escapeHtml(hex)}"></button>`;
+
+  dlg.innerHTML = `
+    <h3 style="margin-top:0">Edit category</h3>
+    <label for="edit-cat-name">Name</label>
+    <input id="edit-cat-name" type="text" />
+    <div class="field" style="margin-top:0.5rem">
+      <label>Color</label>
+      <div id="edit-cat-swatches" class="inline-swatch-grid">
+        ${visiblePalette
+          .map((hex) => {
+            const isActive =
+              pickedColor && hex.toLowerCase() === pickedColor.toLowerCase();
+            return swatchHtml(hex, isActive);
+          })
+          .join("")}
+      </div>
+    </div>
+    <menu>
+      <button id="edit-cat-cancel" value="cancel" type="button">Cancel</button>
+      <button id="edit-cat-save" value="save" type="button">Save</button>
+    </menu>
+  `;
+
+  const nameInput = dlg.querySelector("#edit-cat-name");
+  nameInput.value = cat.name;
+
+  const grid = dlg.querySelector("#edit-cat-swatches");
+  grid.onclick = (e) => {
+    const sw = e.target.closest(".inline-swatch");
+    if (!sw) return;
+    const hex = sw.dataset.color;
+    pickedColor = hex;
+    grid.querySelectorAll(".inline-swatch").forEach((s) => {
+      s.classList.toggle(
+        "active",
+        s.dataset.color.toLowerCase() === hex.toLowerCase(),
+      );
+    });
+  };
+
+  dlg.querySelector("#edit-cat-cancel").onclick = () => dlg.close();
+
+  const saveBtn = dlg.querySelector("#edit-cat-save");
+  saveBtn.onclick = async () => {
+    const newName = nameInput.value.trim();
+    if (!newName) { toast("Name required", "error"); return; }
+    try {
+      await withBusyButton(saveBtn, "Saving…", () =>
+        api.patch(`/categories/${cat.id}`, {
+          name: newName,
+          color: pickedColor,
+        }),
+      );
+      dlg.close();
+      toast("Category updated");
+      await renderSettings();
+      keepOpen("categories");
+    } catch (err) {
+      toast(friendlyError(err, "Couldn't update category"), "error");
+    }
+  };
+
+  dlg.showModal();
+  blurAutoFocusedInDialog(dlg);
 }

@@ -4,7 +4,14 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from app import accounts, auth_session, balance_entries, categories, networth
+from app import (
+    accounts,
+    auth_session,
+    balance_entries,
+    budget,
+    categories,
+    networth,
+)
 from app.db import close_pool, init_pool
 
 
@@ -30,6 +37,7 @@ app.include_router(categories.router)
 app.include_router(accounts.router)
 app.include_router(balance_entries.router)
 app.include_router(networth.router)
+app.include_router(budget.router)
 
 
 @app.get("/")

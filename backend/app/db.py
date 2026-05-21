@@ -143,6 +143,95 @@ ALTER TABLE accounts ADD CONSTRAINT accounts_asset_class_check CHECK (
         'Cash', 'Stocks', 'Crypto', 'Precious Metals', 'Pension', 'Other'
     )
 );
+
+-- 2026-05-20 Plan 3 (Budget): unique color per user. Categories with a color
+-- must not share it with another of the same user's categories. NULL colors
+-- are unconstrained (the picker reserves a "no color" option as a fallback).
+CREATE UNIQUE INDEX IF NOT EXISTS idx_categories_user_color_unique
+    ON categories(user_id, color) WHERE color IS NOT NULL;
+
+-- 2026-05-20 Plan 3 (Budget): template (one draft + N labelled versions),
+-- monthly plan (deep-copy of the draft, then independently editable).
+CREATE TABLE IF NOT EXISTS budget_templates (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    status TEXT NOT NULL,
+    label TEXT,
+    salary_dkk NUMERIC(12, 2) NOT NULL DEFAULT 0,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    CONSTRAINT budget_templates_status_check
+        CHECK (status IN ('draft', 'version'))
+);
+
+-- Exactly one draft per user. Many version rows allowed per user.
+CREATE UNIQUE INDEX IF NOT EXISTS idx_budget_templates_one_draft_per_user
+    ON budget_templates(user_id) WHERE status = 'draft';
+
+CREATE INDEX IF NOT EXISTS idx_budget_templates_user_status_created
+    ON budget_templates(user_id, status, created_at DESC);
+
+CREATE TABLE IF NOT EXISTS budget_template_categories (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    template_id UUID NOT NULL REFERENCES budget_templates(id) ON DELETE CASCADE,
+    category_id UUID NOT NULL REFERENCES categories(id) ON DELETE CASCADE,
+    sort_order INTEGER NOT NULL DEFAULT 0,
+    UNIQUE (template_id, category_id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_budget_template_categories_template
+    ON budget_template_categories(template_id);
+
+CREATE TABLE IF NOT EXISTS budget_template_items (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    template_category_id UUID NOT NULL
+        REFERENCES budget_template_categories(id) ON DELETE CASCADE,
+    name TEXT NOT NULL,
+    planned_dkk NUMERIC(12, 2) NOT NULL,
+    sort_order INTEGER NOT NULL DEFAULT 0
+);
+
+CREATE INDEX IF NOT EXISTS idx_budget_template_items_template_category
+    ON budget_template_items(template_category_id);
+
+CREATE TABLE IF NOT EXISTS budget_months (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    year INTEGER NOT NULL,
+    month INTEGER NOT NULL,
+    salary_dkk NUMERIC(12, 2) NOT NULL DEFAULT 0,
+    archived_at TIMESTAMPTZ,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    UNIQUE (user_id, year, month),
+    CONSTRAINT budget_months_month_check CHECK (month BETWEEN 1 AND 12)
+);
+
+CREATE INDEX IF NOT EXISTS idx_budget_months_user_year_month
+    ON budget_months(user_id, year DESC, month DESC);
+
+CREATE TABLE IF NOT EXISTS budget_month_categories (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    month_id UUID NOT NULL REFERENCES budget_months(id) ON DELETE CASCADE,
+    category_id UUID NOT NULL REFERENCES categories(id) ON DELETE CASCADE,
+    sort_order INTEGER NOT NULL DEFAULT 0,
+    UNIQUE (month_id, category_id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_budget_month_categories_month
+    ON budget_month_categories(month_id);
+
+CREATE TABLE IF NOT EXISTS budget_month_items (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    month_category_id UUID NOT NULL
+        REFERENCES budget_month_categories(id) ON DELETE CASCADE,
+    name TEXT NOT NULL,
+    planned_dkk NUMERIC(12, 2) NOT NULL,
+    remaining_dkk NUMERIC(12, 2) NOT NULL,
+    ticked_at TIMESTAMPTZ,
+    sort_order INTEGER NOT NULL DEFAULT 0
+);
+
+CREATE INDEX IF NOT EXISTS idx_budget_month_items_month_category
+    ON budget_month_items(month_category_id);
 """
 
 

@@ -14,7 +14,8 @@ See [CLAUDE.md](./CLAUDE.md) for the project overview.
   - Per-account balance-entry history (manual, wealth-accounts only).
   - Total + composition donut by asset class (Cash / Stocks / Crypto / Precious Metals / Pension / Other).
   - Total net-worth chart over time (Chart.js stepped area), 1M / 3M / 6M / 1Y / ALL period pills with deltas.
-  - Global **Total / Liquid** toggle that applies the Danish 60% pension early-withdrawal haircut to the top number, the chart, the period delta, and the composition donut.
+  - Global **Total / Liquid / No pension** toggle (shown when the portfolio holds pension): Liquid applies the Danish 60% pension early-withdrawal haircut; No pension drops the Pension slice entirely and renormalizes composition. Selection slides the pill indicator and updates the headline, EUR readout, period delta, line chart, and donut in-place.
+  - Supplementary `≈ X eur` line under the headline DKK total, ERM II peg (7.46038 DKK/EUR).
   - "First entry is the cutoff" invariant — once an account has a balance entry, nothing earlier can be inserted.
 - Budget view:
   - Persistent template (one editable draft + N labelled read-only snapshots / "versions" of past template states).

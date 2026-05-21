@@ -93,15 +93,18 @@ const BUDGET_SORT_OPTIONS = [
   { value: "amount", label: "Amount (high → low)" },
   { value: "alpha",  label: "A → Z" },
 ];
-const BUDGET_SORT_KEY = "net-tracker.budget.sort";
 
+// localStorage key is inlined inside the helpers below rather than held in
+// a module-scope `const`, so loadBudgetSort() can be safely called during
+// state initialization (TDZ would otherwise throw if it referenced a
+// not-yet-defined const declared after the state object).
 function loadBudgetSort() {
-  const s = localStorage.getItem(BUDGET_SORT_KEY);
+  const s = localStorage.getItem("net-tracker.budget.sort");
   return s === "alpha" ? "alpha" : "amount";
 }
 
 function saveBudgetSort(s) {
-  localStorage.setItem(BUDGET_SORT_KEY, s);
+  localStorage.setItem("net-tracker.budget.sort", s);
 }
 
 /** Return a shallow-cloned month with categories and items reordered

@@ -9,9 +9,8 @@ import { closeDialog, friendlyError, openDialog, toast, withBusyButton } from ".
 import { renderBudget, resetBudgetSubView } from "./budget.js";
 import { renderNetWorth } from "./networth.js";
 import { renderSettings } from "./settings.js";
-import { renderSpending } from "./spending.js";
 
-const VIEWS = ["home", "budget", "spending", "networth", "settings"];
+const VIEWS = ["home", "budget", "networth", "settings"];
 
 function $(sel) { return document.querySelector(sel); }
 
@@ -27,7 +26,6 @@ function showView(name) {
   if (name === "settings") renderSettings();
   if (name === "networth") renderNetWorth();
   if (name === "budget") { resetBudgetSubView(); renderBudget(); }
-  if (name === "spending") renderSpending();
 }
 
 // ----- drawer -----
@@ -181,12 +179,11 @@ async function tryVerify() {
 
 /**
  * Toggle visibility of the auth-gated menu items + home-view panels.
- * Sign in shows only when signed out; Budget/Spending/Net Worth/
- * Settings/Sign out only when signed in. Home stays visible either
- * way.
+ * Sign in shows only when signed out; Budget/Net Worth/Settings/
+ * Sign out only when signed in. Home stays visible either way.
  */
 function applyAuthState(signedIn) {
-  const gated = ["budget", "spending", "networth", "settings", "signout"];
+  const gated = ["budget", "networth", "settings", "signout"];
   for (const action of gated) {
     const el = document.querySelector(`.menu-item[data-action="${action}"]`);
     if (el) el.hidden = !signedIn;

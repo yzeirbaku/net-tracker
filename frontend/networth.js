@@ -31,6 +31,23 @@ const PERIODS = ["1M", "3M", "6M", "1Y", "ALL"];
  */
 const DKK_TO_EUR_RATE = 7.46038;
 
+const VIEW_MODE_STORAGE_KEY = "net-tracker.networth.view-mode";
+const VALID_VIEW_MODES = new Set(["total", "liquid", "no_pension"]);
+
+export function getNetWorthViewMode() {
+  try {
+    const stored = localStorage.getItem(VIEW_MODE_STORAGE_KEY);
+    return VALID_VIEW_MODES.has(stored) ? stored : "total";
+  } catch {
+    return "total";
+  }
+}
+
+function setNetWorthViewMode(mode) {
+  if (!VALID_VIEW_MODES.has(mode)) return;
+  try { localStorage.setItem(VIEW_MODE_STORAGE_KEY, mode); } catch { /* ignore quota */ }
+}
+
 const state = {
   total_dkk: 0,
   liquid_dkk: 0,
@@ -46,7 +63,7 @@ const state = {
   // the page (top number, delta, chart, donut, composition legend). Toggle
   // is visible at the top of the view, only when the portfolio actually
   // contains pension holdings.
-  activeView: "total",
+  activeView: getNetWorthViewMode(),
   mainChart: null,
   donutChart: null,
 };
@@ -782,6 +799,7 @@ function bindViewPills(root) {
   root.querySelectorAll(".networth-view-pills button").forEach((btn) => {
     btn.addEventListener("click", () => {
       state.activeView = btn.dataset.view;
+      setNetWorthViewMode(state.activeView);
       const group = btn.closest(".networth-view-pills");
       // Toggle .active in-place (no full re-render) so the .seg-indicator
       // element survives the click and its CSS transition can animate the

@@ -92,6 +92,17 @@
       <button id="login-cancel" value="cancel" type="button">Close</button>
       <button id="login-send" value="save" type="button">Send link</button>
     </menu>
+    <!-- iOS PWA workaround: tapping the email link opens Safari, not the
+         installed app. As a fallback the user can long-press the link in
+         the email, copy it, and paste it here to sign into the PWA. -->
+    <details style="margin-top:0.9rem;">
+      <summary class="muted" style="cursor:pointer;font-size:0.85rem;">Already have a sign-in link? Paste it here</summary>
+      <label for="login-paste" style="margin-top:0.5rem;display:block;">Paste the link from the email</label>
+      <textarea id="login-paste" rows="2" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" style="width:100%;resize:vertical;"></textarea>
+      <menu>
+        <button id="login-paste-submit" type="button">Sign in with link</button>
+      </menu>
+    </details>
   </dialog>
 
   <dialog id="confirm-dialog">

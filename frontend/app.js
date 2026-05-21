@@ -163,6 +163,33 @@ function bindLogin() {
       toast(friendlyError(err, "Couldn't send sign-in link"), "error");
     }
   });
+  // iOS PWA fallback: paste the magic link, extract the token, verify.
+  $("#login-paste-submit").addEventListener("click", async (e) => {
+    e.preventDefault();
+    const raw = $("#login-paste").value.trim();
+    if (!raw) {
+      toast("Paste the sign-in link first", "error");
+      return;
+    }
+    const match = raw.match(/auth=([^&\s#]+)/);
+    if (!match) {
+      toast("That doesn't look like a sign-in link", "error");
+      return;
+    }
+    const token = decodeURIComponent(match[1]);
+    try {
+      await withBusyButton(e.currentTarget, "Signing in…", async () => {
+        const res = await api.post("/auth/verify", { token });
+        setToken(res.token);
+        toast(`Signed in as ${res.email}`);
+      });
+      $("#login-paste").value = "";
+      closeDialog("login-dialog");
+      await refreshSignedInState();
+    } catch (err) {
+      toast(friendlyError(err, "Sign-in failed"), "error");
+    }
+  });
 }
 
 async function tryVerify() {

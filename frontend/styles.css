@@ -1648,12 +1648,19 @@ dialog menu button[value="save"].dialog-danger-confirm {
 
 .budget-item:last-child { border-bottom: none; }
 
-.budget-item.is-done {
+.budget-item.is-done .budget-item-name,
+.budget-item.is-done .budget-item-nums {
   opacity: 0.5;
 }
 
 .budget-item.is-done .budget-item-name {
   text-decoration: line-through;
+}
+
+.budget-item-actions .budget-icon-btn:disabled {
+  opacity: 0.4;
+  pointer-events: none;
+  cursor: not-allowed;
 }
 
 .budget-item-name {

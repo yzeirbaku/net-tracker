@@ -107,6 +107,43 @@ function saveBudgetSort(s) {
   localStorage.setItem("net-tracker.budget.sort", s);
 }
 
+/** Reorder the template draft's categories + items per the given mode and
+ *  reassign sort_order on both so the new order survives the save. Unlike
+ *  sortedMonth, this is a destructive in-place rewrite — meant to run at
+ *  Save / Save new version time, baking the chosen order into the template
+ *  so every future stamp starts in that order. */
+function applyDraftSort(draft, mode) {
+  if (!draft || !Array.isArray(draft.categories)) return;
+  const sortItems = (items) => {
+    const sorted = [...items];
+    if (mode === "alpha") {
+      sorted.sort((a, b) =>
+        (a.name || "").localeCompare(b.name || ""),
+      );
+    } else {
+      sorted.sort(
+        (a, b) => Number(b.planned_dkk || 0) - Number(a.planned_dkk || 0),
+      );
+    }
+    return sorted.map((it, i) => ({ ...it, sort_order: i }));
+  };
+  const cats = draft.categories.map((c) => ({
+    ...c,
+    items: sortItems(c.items || []),
+  }));
+  cats.sort((a, b) => {
+    if (mode === "alpha") {
+      const aname = state.categories.find((c) => c.id === a.category_id)?.name || "";
+      const bname = state.categories.find((c) => c.id === b.category_id)?.name || "";
+      return aname.localeCompare(bname);
+    }
+    const at = (a.items || []).reduce((s, i) => s + Number(i.planned_dkk || 0), 0);
+    const bt = (b.items || []).reduce((s, i) => s + Number(i.planned_dkk || 0), 0);
+    return bt - at;
+  });
+  draft.categories = cats.map((c, i) => ({ ...c, sort_order: i }));
+}
+
 /** Return a shallow-cloned month with categories and items reordered
  *  by state.budgetSort. The original `month` and its arrays are not
  *  mutated — keeps re-renders idempotent and lets the source-of-truth
@@ -822,12 +859,6 @@ async function openItemDialog({ mode, item, monthCategoryId, categoryId }) {
       <input id="budget-item-remaining" type="text" inputmode="decimal" />
       <p class="muted-tiny">Lower this as you pay. At 0, the item is auto-ticked.</p>
     </div>
-    <div id="budget-item-paid-wrap" hidden style="margin-top: 0.5rem">
-      <label style="display:flex; gap:0.5rem; align-items:center; font-weight:normal">
-        <input id="budget-item-already-paid" type="checkbox" />
-        <span>Already paid (record as done)</span>
-      </label>
-    </div>
     <menu>
       <button value="cancel" data-budget-dialog-close type="button">Cancel</button>
       <button value="save" data-budget-dialog-save type="button">Save</button>
@@ -838,21 +869,16 @@ async function openItemDialog({ mode, item, monthCategoryId, categoryId }) {
   const plannedInput = dlg.querySelector("#budget-item-planned");
   const remainingWrap = dlg.querySelector("#budget-item-remaining-wrap");
   const remainingInput = dlg.querySelector("#budget-item-remaining");
-  const paidWrap = dlg.querySelector("#budget-item-paid-wrap");
-  const paidCheckbox = dlg.querySelector("#budget-item-already-paid");
 
   if (isAdd) {
     nameInput.value = "";
     plannedInput.value = "";
     remainingWrap.hidden = true;
-    paidWrap.hidden = false;
-    paidCheckbox.checked = false;
   } else {
     nameInput.value = item.name;
     plannedInput.value = formatAmountForInput(item.planned_dkk);
     remainingWrap.hidden = false;
     remainingInput.value = formatAmountForInput(item.remaining_dkk);
-    paidWrap.hidden = true;
   }
   installAmountFormatter(plannedInput);
   installAmountFormatter(remainingInput);
@@ -864,7 +890,6 @@ async function openItemDialog({ mode, item, monthCategoryId, categoryId }) {
     if (planned === null) { toast("Enter a valid planned amount", "error"); return false; }
 
     if (isAdd) {
-      const already = paidCheckbox.checked;
       try {
         await withBusyButton(saveBtn, "Adding…", () =>
           api.post(
@@ -873,11 +898,10 @@ async function openItemDialog({ mode, item, monthCategoryId, categoryId }) {
               category_id: categoryId,
               name,
               planned_dkk: planned,
-              already_paid: already,
             },
           ),
         );
-        toast(already ? "Expense logged" : "Item added");
+        toast("Item added");
         await renderBudget();
         return true;
       } catch (err) {
@@ -1365,17 +1389,25 @@ function bindTemplateEditorHandlers(root) {
 
 async function saveTemplateDraft(btn, asVersion) {
   try {
+    // Bake the current sort preference into the draft right before the
+    // PATCH lands. Template editing keeps the user's manual order while
+    // they type so the cursor doesn't jump; the destructive reorder
+    // happens only at this save boundary so every future stamp starts
+    // in the chosen order.
+    applyDraftSort(state.templateDraft, state.budgetSort);
     await withBusyButton(btn, "Saving…", async () => {
       await api.patch("/budget/template", buildTemplatePatchPayload());
     });
     state.templateBaseline = JSON.stringify(serializeTemplate(state.templateDraft));
+    // Re-render so the newly-sorted order is reflected immediately. Also
+    // drops the Discard button now that we match the server baseline.
+    // For the snapshot path the snapshot dialog is open over the editor
+    // anyway, so the updated underlying view will be revealed when it
+    // closes.
+    const root = document.getElementById("budget-root");
+    if (root) renderTemplateEditorHtml(root);
     if (!asVersion) {
       toast("Template saved");
-      // Re-render so the Discard button (which was visible because the
-      // editor was dirty) drops out of the header now that we match the
-      // server's baseline.
-      const root = document.getElementById("budget-root");
-      if (root) renderTemplateEditorHtml(root);
     }
     return true;
   } catch (err) {

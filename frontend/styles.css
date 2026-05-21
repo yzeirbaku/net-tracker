@@ -1387,6 +1387,8 @@ dialog menu button[value="save"].dialog-danger-confirm {
 
 .budget-month-picker-mount { flex: 1; }
 
+.budget-export-btn { margin-left: auto; }
+
 .budget-nav {
   background: transparent;
   border: 1px solid var(--border);

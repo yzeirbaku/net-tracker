@@ -1104,6 +1104,9 @@ function renderTemplateEditorHtml(root) {
   const tpl = state.templateDraft;
   const usedCategoryIds = new Set(tpl.categories.map((c) => c.category_id));
   const addableCategories = state.categories.filter((c) => !usedCategoryIds.has(c.id));
+  const planned = templatePlannedTotal(tpl);
+  const salary = Number(tpl.salary_dkk || 0);
+  const free = salary - planned;
 
   // Note: no separate "Discard changes" button. Pressing Back already
   // confirms-and-discards when the editor is dirty, which serves the same
@@ -1127,6 +1130,11 @@ function renderTemplateEditorHtml(root) {
         ${tpl.categories.map((c, ci) => renderTemplateCategoryHtml(c, ci)).join("") || '<p class="muted">No categories in this template. Add one below.</p>'}
       </div>
       <button type="button" class="budget-add-category" data-budget-action="tpl-open-add-categories">+ Add categories</button>
+      <div class="budget-footer">
+        <div class="budget-footer-row" data-tpl-totals="planned"><span>Total planned</span><span>${escapeHtml(fmtDKK(planned))}</span></div>
+        <div class="budget-footer-row big" data-tpl-totals="salary"><span>Salary</span><span>${escapeHtml(fmtDKK(salary))}</span></div>
+        <div class="budget-footer-row ${free >= 0 ? "remain" : "negative"}" data-tpl-totals="free"><span>Free money</span><span>${escapeHtml(fmtDKK(free))}</span></div>
+      </div>
       <div class="budget-footer budget-template-savebar">
         <button type="button" data-budget-action="tpl-save" class="btn">Save</button>
         <button type="button" data-budget-action="tpl-snapshot" class="btn-primary">Save new version</button>
@@ -1135,6 +1143,42 @@ function renderTemplateEditorHtml(root) {
   `;
 
   bindTemplateEditorHandlers(root);
+}
+
+/** Sum of every item's planned_dkk across every category in the template
+ *  draft. Used by both the initial render and the live footer updates. */
+function templatePlannedTotal(tpl) {
+  if (!tpl || !Array.isArray(tpl.categories)) return 0;
+  return tpl.categories.reduce(
+    (sum, c) => sum + (c.items || []).reduce(
+      (s, i) => s + Number(i.planned_dkk || 0),
+      0,
+    ),
+    0,
+  );
+}
+
+/** Refresh the template editor's totals footer in place — same pattern
+ *  the per-category total uses, so typing into an amount input doesn't
+ *  blow away the cursor. */
+function updateTemplateFooter(root) {
+  const tpl = state.templateDraft;
+  if (!tpl || !root) return;
+  const planned = templatePlannedTotal(tpl);
+  const salary = Number(tpl.salary_dkk || 0);
+  const free = salary - planned;
+  const setRow = (key, value) => {
+    const span = root.querySelector(`[data-tpl-totals="${key}"] > span:last-child`);
+    if (span) span.textContent = fmtDKK(value);
+  };
+  setRow("planned", planned);
+  setRow("salary", salary);
+  setRow("free", free);
+  const freeRow = root.querySelector('[data-tpl-totals="free"]');
+  if (freeRow) {
+    freeRow.classList.toggle("remain", free >= 0);
+    freeRow.classList.toggle("negative", free < 0);
+  }
 }
 
 function renderTemplateCategoryHtml(cat, catIdx) {
@@ -1187,6 +1231,7 @@ function bindTemplateEditorHandlers(root) {
       // retype.
       if (v === null) return;
       state.templateDraft.salary_dkk = String(v);
+      updateTemplateFooter(root);
     });
   }
 
@@ -1223,6 +1268,9 @@ function bindTemplateEditorHandlers(root) {
         const total = cat.items.reduce((acc, i) => acc + Number(i.planned_dkk || 0), 0);
         totalEl.textContent = fmtDKK(total);
       }
+      // Footer Total planned / Free money depend on every item, so refresh
+      // those too — also in place, no full re-render.
+      updateTemplateFooter(root);
     }
   });
 

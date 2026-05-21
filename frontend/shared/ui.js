@@ -164,6 +164,14 @@ export function confirmPrompt({ title = "Confirm", message = "", okLabel = "Conf
     const onClose = () => {
       dlg.removeEventListener("close", onClose);
       okBtn.classList.remove("dialog-danger-confirm");
+      // Browsers restore focus to the element that opened the dialog
+      // after a modal closes. That leaves a :focus-visible ring on the
+      // triggering button (e.g. the × on a category row), which reads
+      // as the row staying "highlighted" after Cancel. Blur it so the
+      // page returns to a neutral state.
+      if (document.activeElement && typeof document.activeElement.blur === "function") {
+        document.activeElement.blur();
+      }
       resolve(dlg.returnValue === "save");
     };
     dlg.addEventListener("close", onClose);

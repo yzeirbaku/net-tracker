@@ -1569,6 +1569,10 @@ async function renderVersionView(root) {
   }
   state.categories = allCats;
 
+  const planned = templatePlannedTotal(version);
+  const salary = Number(version.salary_dkk || 0);
+  const free = salary - planned;
+
   root.innerHTML = `
     <div class="card budget-month-card">
       ${headerHtml({
@@ -1584,6 +1588,11 @@ async function renderVersionView(root) {
       </div>
       <div class="budget-categories">
         ${version.categories.map((c) => renderReadonlyCategoryHtml(c)).join("") || '<p class="muted">No categories in this version.</p>'}
+      </div>
+      <div class="budget-footer">
+        <div class="budget-footer-row"><span>Total planned</span><span>${escapeHtml(fmtDKK(planned))}</span></div>
+        <div class="budget-footer-row big"><span>Salary</span><span>${escapeHtml(fmtDKK(salary))}</span></div>
+        <div class="budget-footer-row ${free >= 0 ? "remain" : "negative"}"><span>Free money</span><span>${escapeHtml(fmtDKK(free))}</span></div>
       </div>
     </div>
   `;

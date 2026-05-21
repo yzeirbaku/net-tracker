@@ -1188,10 +1188,13 @@ function renderTemplateCategoryHtml(cat, catIdx) {
   const name = meta?.name || "Unknown category";
   const color = meta?.color || "var(--muted)";
   const total = cat.items.reduce((acc, i) => acc + Number(i.planned_dkk || 0), 0);
+  const ck = tplCollapseKey(cat.category_id);
+  const isCollapsed = state.collapsed[ck] === true;
   return `
-    <div class="budget-cat" data-cat-idx="${catIdx}" style="--cat-color: ${escapeHtml(color)};">
-      <div class="budget-cat-head budget-cat-head-static">
+    <div class="budget-cat ${isCollapsed ? "is-collapsed" : ""}" data-cat-idx="${catIdx}" style="--cat-color: ${escapeHtml(color)};">
+      <div class="budget-cat-head" data-budget-action="tpl-toggle-cat" data-cat-idx="${catIdx}" role="button" tabindex="0">
         <span class="budget-cat-name">
+          <span class="budget-cat-caret">${isCollapsed ? "▸" : "▾"}</span>
           <span>${escapeHtml(name)}</span>
         </span>
         <span class="budget-cat-totals">
@@ -1199,12 +1202,30 @@ function renderTemplateCategoryHtml(cat, catIdx) {
           <button type="button" data-budget-action="tpl-remove-cat" data-cat-idx="${catIdx}" class="budget-icon-btn budget-icon-btn-danger" title="Remove this category" aria-label="Remove category"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 6 6 18M6 6l12 12"/></svg></button>
         </span>
       </div>
-      <div class="budget-cat-body">
-        ${cat.items.map((it, ii) => renderTemplateItemRow(catIdx, ii, it)).join("")}
-        <button type="button" data-budget-action="tpl-add-item" data-cat-idx="${catIdx}" class="budget-add-item">+ Add item</button>
-      </div>
+      ${
+        isCollapsed
+          ? ""
+          : `<div class="budget-cat-body">
+              ${cat.items.map((it, ii) => renderTemplateItemRow(catIdx, ii, it)).join("")}
+              <button type="button" data-budget-action="tpl-add-item" data-cat-idx="${catIdx}" class="budget-add-item">+ Add item</button>
+            </div>`
+      }
     </div>
   `;
+}
+
+function tplCollapseKey(categoryId) {
+  return `tpl-${categoryId}`;
+}
+
+function toggleTemplateCategory(catIdx) {
+  const cat = state.templateDraft?.categories?.[catIdx];
+  if (!cat) return;
+  const key = tplCollapseKey(cat.category_id);
+  state.collapsed[key] = !state.collapsed[key];
+  saveCollapsed();
+  const root = document.getElementById("budget-root");
+  if (root) renderTemplateEditorHtml(root);
 }
 
 function renderTemplateItemRow(catIdx, itemIdx, item) {
@@ -1298,6 +1319,12 @@ function bindTemplateEditorHandlers(root) {
     } else if (action === "tpl-history") {
       state.subView = "history";
       renderBudget();
+    } else if (action === "tpl-toggle-cat") {
+      // Clicks on the icon-button × inside the head bubble up too — skip
+      // toggle when the click actually hit (or originated from) the
+      // remove-category button.
+      if (e.target.closest('[data-budget-action="tpl-remove-cat"]')) return;
+      toggleTemplateCategory(Number(btn.dataset.catIdx));
     } else if (action === "tpl-add-item") {
       const ci = Number(btn.dataset.catIdx);
       const cat = state.templateDraft.categories[ci];

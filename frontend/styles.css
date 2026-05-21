@@ -522,6 +522,25 @@ label { display: block; font-size: 0.78rem; color: var(--muted); margin-bottom: 
 .list-rows .budget-icon-btn { font-size: 0.95rem; }
 .list-rows .budget-icon-btn.budget-icon-btn-danger { font-size: 1.1rem; }
 
+/* SVG variant — when the button content is an inline <svg> instead of a
+ * Unicode glyph, font-size is irrelevant. Size the SVG itself so the icon
+ * sits visually centered inside the 28×28 box. `stroke="currentColor"` on
+ * the SVG lets the danger hover-color rule (which sets `color`) re-tint
+ * the stroke automatically.
+ *
+ * The Lucide pencil has more strokes / visual weight than the simple X, so
+ * the edit icon (non-danger SVG) renders at 14px while the delete X stays
+ * at 16px — keeps them visually balanced even though the box is identical. */
+.budget-icon-btn-svg svg {
+  width: 16px;
+  height: 16px;
+  display: block;
+}
+.budget-icon-btn-svg:not(.budget-icon-btn-danger) svg {
+  width: 14px;
+  height: 14px;
+}
+
 .add-row {
   display: grid; gap: 0.5rem; grid-template-columns: 1fr auto;
   margin-bottom: 0.5rem;

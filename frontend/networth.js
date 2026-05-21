@@ -23,6 +23,14 @@ const ASSET_CLASS_COLORS = {
 
 const PERIODS = ["1M", "3M", "6M", "1Y", "ALL"];
 
+/**
+ * DKK is pegged to EUR via ERM II at a central rate of 7.46038 ±2.25%.
+ * Daily fluctuation is tiny, so a hardcoded rate is fine for the
+ * supplementary EUR readout under the headline DKK total. If the user
+ * ever wants a configurable rate, this constant moves to settings.
+ */
+const DKK_TO_EUR_RATE = 7.46038;
+
 const state = {
   total_dkk: 0,
   liquid_dkk: 0,
@@ -152,6 +160,11 @@ function fmtDKK(n) {
   return num.toLocaleString("de-DE", { maximumFractionDigits: 0 }) + " dkk";
 }
 
+function fmtEUR(dkk) {
+  const num = Number(dkk) / DKK_TO_EUR_RATE;
+  return num.toLocaleString("de-DE", { maximumFractionDigits: 0 }) + " eur";
+}
+
 function fmtDate(iso) {
   if (!iso) return "";
   const [y, m, d] = iso.split("-");
@@ -264,6 +277,7 @@ function renderHtml() {
     <div class="card networth-total-card">
       ${viewToggle}
       <div class="networth-total-value">${fmtDKK(topTotalForView())}</div>
+      <div class="networth-total-value-eur">≈ ${fmtEUR(topTotalForView())}</div>
       <div class="seg-group networth-period-pills" role="tablist">
         <span class="seg-indicator" aria-hidden="true"></span>
         ${PERIODS.map(

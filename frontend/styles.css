@@ -62,7 +62,12 @@ body {
   color: var(--fg);
   font-size: 15px;
   line-height: 1.45;
+  /* dvh tracks the actually-visible viewport on mobile (shrinks when the
+   * URL bar appears) — vh on iOS Safari is calculated against the
+   * largest viewport with the URL bar hidden, which leaves phantom
+   * empty space below content when the URL bar is visible. */
   min-height: 100vh;
+  min-height: 100dvh;
 }
 
 /* Theme toggle is intentionally instant — no cross-fade. */

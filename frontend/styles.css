@@ -1274,6 +1274,17 @@ dialog menu button[value="save"].dialog-danger-confirm {
 
 /* ─── Month picker (Budget view) ──────────────────────────────────────── */
 
+/* Center the month-picker popup under its trigger instead of left-anchoring
+ * it. The trigger in the budget header sits in the middle of the row
+ * (between the prev / next chevrons) and is often narrower than the 280px
+ * popup — left-anchored, the popup overhangs to the right. Centering keeps
+ * the popup visually balanced under the trigger on every viewport width. */
+.mp .dp-popup {
+  left: 50%;
+  right: auto;
+  transform: translateX(-50%);
+}
+
 .mp .dp-title { font-size: 1rem; }
 
 .mp-grid {

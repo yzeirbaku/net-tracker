@@ -872,14 +872,16 @@ dialog menu button[value="save"].dialog-danger-confirm {
   padding: 1.5rem 1rem;
 }
 
-/* EUR readout sits directly under the headline DKK total. Neutral muted
- * color (not the green gradient) and a much smaller font so it reads as
- * a supplementary conversion, not a co-equal number. */
+/* EUR readout hugs the headline DKK total above it, then a proper
+ * breathing gap below before the period pills. Muted neutral color
+ * (no green gradient) and a much smaller font so it reads as a
+ * supplementary conversion, not a co-equal number. */
 .networth-total-value-eur {
   font-size: 0.95rem;
   color: var(--muted);
   text-align: center;
-  margin-top: 0.15rem;
+  margin-top: 0.1rem;
+  margin-bottom: 1rem;
   font-variant-numeric: tabular-nums;
 }
 
@@ -891,7 +893,9 @@ dialog menu button[value="save"].dialog-danger-confirm {
   -webkit-background-clip: text;
   background-clip: text;
   color: transparent;
-  margin-bottom: 0.75rem;
+  /* No bottom margin — the EUR readout sits flush against the DKK
+   * number and owns the spacing to the pills below. */
+  margin-bottom: 0;
 }
 
 .networth-period-pills {

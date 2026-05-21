@@ -119,19 +119,21 @@ header h1 {
 }
 .icon-btn:active { transform: scale(0.96); }
 .icon-btn:focus-visible { outline: 2px solid var(--accent-strong); outline-offset: 2px; }
-#menu-btn { font-size: 1.25rem; }
+/* SVG-based burger — sized explicitly so the icon renders pixel-identical
+   across iOS Safari and Chrome (the previous ☰ unicode glyph drifted by
+   a few px between platforms because its baseline-within-line-box varies).
+   Pattern mirrors gold-bar-tracker. */
+#menu-btn svg { width: 22px; height: 22px; display: block; }
 
 @media (max-width: 480px) {
   header { padding: 0.7rem 1rem; gap: 0.15rem; }
-  header h1 { font-size: 1.15rem; }
+  header h1 { font-size: 1.16rem; }
   .icon-btn { width: 40px; height: 40px; font-size: 1.2rem; }
-  /* Bigger glyph + 2px upward nudge so the burger sits visually above
-     the title baseline rather than centered with the descender space. */
-  #menu-btn {
-    width: 36px; height: 36px;
-    font-size: 1.75rem;
-    transform: translateY(-2px);
-  }
+  /* Burger gets a slightly smaller button frame than the base mobile
+     .icon-btn so the SVG dominates the chrome. SVG sized larger here for
+     the mobile bump the title got. */
+  #menu-btn { width: 36px; height: 36px; }
+  #menu-btn svg { width: 26px; height: 26px; }
 }
 
 /* ---------- drawer ---------- */
@@ -868,6 +870,17 @@ dialog menu button[value="save"].dialog-danger-confirm {
 .networth-total-card {
   text-align: center;
   padding: 1.5rem 1rem;
+}
+
+/* EUR readout sits directly under the headline DKK total. Neutral muted
+ * color (not the green gradient) and a much smaller font so it reads as
+ * a supplementary conversion, not a co-equal number. */
+.networth-total-value-eur {
+  font-size: 0.95rem;
+  color: var(--muted);
+  text-align: center;
+  margin-top: 0.15rem;
+  font-variant-numeric: tabular-nums;
 }
 
 .networth-total-value {

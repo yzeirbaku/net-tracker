@@ -1338,7 +1338,12 @@ dialog menu button[value="save"].dialog-danger-confirm {
   justify-content: space-between;
   align-items: baseline;
   gap: 0.6rem;
-  margin-bottom: 0.75rem;
+  /* Thin divider visually separates the title + actions from the body
+   * (month picker, salary panel, categories). Same treatment on every
+   * Budget sub-view (month / template / history / version / archive). */
+  padding-bottom: 0.7rem;
+  margin-bottom: 0.9rem;
+  border-bottom: 1px solid var(--border);
 }
 
 .budget-header-title {
@@ -1460,26 +1465,48 @@ dialog menu button[value="save"].dialog-danger-confirm {
   font-variant-numeric: tabular-nums;
 }
 
-/* Sort row sits just under the salary panel. Label on the left, dropdown
- * on the right — mirrors the salary panel's horizontal layout so the two
- * read as a paired header strip above the category list. */
+/* Sort row sits just under the salary panel. The label hugs the dropdown
+ * on the left (no space-between push) so the whole thing reads as an
+ * inline "sort by …" affordance rather than a full-width form row. */
 .budget-sort-row {
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  gap: 0.6rem;
-  margin: 0.4rem 0 0.6rem;
+  gap: 0.5rem;
+  margin: 0.5rem 0 0.7rem;
   padding: 0 0.15rem;
 }
 .budget-sort-label {
-  font-size: 0.7rem;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
+  font-size: 0.78rem;
   color: var(--muted);
 }
 .budget-sort-mount {
-  min-width: 200px;
   flex: 0 0 auto;
+  min-width: 170px;
+}
+/* Slim, pill-shaped trigger so the dropdown reads as a quiet inline
+ * affordance, not a heavy form control. Popup keeps the shared
+ * .dd-list styling so the option rows still feel familiar. */
+.budget-sort-mount .dd-trigger {
+  min-height: 26px;
+  padding: 0.18rem 0.6rem 0.18rem 0.7rem;
+  font-size: 0.82rem;
+  background: transparent;
+  border-color: var(--border);
+  border-radius: 999px;
+  gap: 0.4rem;
+}
+@media (hover: hover) {
+  .budget-sort-mount .dd-trigger:hover {
+    border-color: var(--muted);
+    background: var(--hover-bg);
+  }
+}
+.budget-sort-mount .dd-label { color: var(--fg-soft); }
+.budget-sort-mount .dd-chevron {
+  width: 7px;
+  height: 7px;
+  border-right-width: 1.5px;
+  border-bottom-width: 1.5px;
 }
 
 /* Square icon-action button used for every per-row × / ✎ / ✓ / ↺ in the

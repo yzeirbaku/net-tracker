@@ -12,6 +12,11 @@
  * app, which doesn't use hash-based sub-routing. The cold-start loading
  * card is painted only on the very first render so re-renders triggered
  * by Add/Tick/etc. don't blink.
+ *
+ * This file is the **dispatcher**: it routes state.subView to the right
+ * render function in the sub-view modules. Heavy lifting lives in:
+ *   - budget-common.js  — state, formatters, derivations, dialogs, handlers
+ *   - (month + template view code will move out in follow-up commits)
  */
 
 import { api } from "./shared/api.js";
@@ -26,343 +31,39 @@ import {
   withBusyButton,
 } from "./shared/ui.js";
 import { paintViewError, paintViewLoading } from "./shared/view-loading.js";
-
-// ── State ────────────────────────────────────────────────────────────────
-
-const state = {
-  subView: "month",                 // "month" | "template" | "history" | "version" | "archive"
-  currentMonth: defaultMonth(),     // { year, month } — defaults to today
-  versionId: null,                  // for "version" sub-view
-  monthsCache: null,                // last GET /budget/months payload (for the picker label hints)
-  categories: [],                   // all user categories (for the add-category picker)
-  // Collapsed state per (year, month, month_category_id). Persisted to localStorage.
-  collapsed: loadCollapsed(),
-  // Sort mode for the month view. "amount" = categories by total planned
-  // descending, items inside by planned_dkk descending. "alpha" = both
-  // sorted A→Z by name. Persisted to localStorage so the user's pick
-  // survives reloads. Template view ignores this — it uses the raw
-  // sort_order from the draft so manual ordering is preserved while
-  // editing.
-  budgetSort: loadBudgetSort(),
-  // Local edit buffer for the template editor — exists only while sub-view = "template".
-  templateDraft: null,
-  // Pristine snapshot of the draft as last loaded from the server — used to
-  // tell whether the editor has unsaved changes.
-  templateBaseline: null,
-  booted: false,
-};
-
-function defaultMonth() {
-  const t = new Date();
-  return { year: t.getFullYear(), month: t.getMonth() + 1 };
-}
-
-// True when (year, month) is strictly before the current calendar month.
-// The Stamp button is hidden for these; the backend also rejects with
-// 400 cannot_stamp_past_month, but the UI shouldn't even offer it.
-function isPastMonth(year, month) {
-  const today = new Date();
-  const ty = today.getFullYear();
-  const tm = today.getMonth() + 1;
-  if (year < ty) return true;
-  if (year > ty) return false;
-  return month < tm;
-}
-
-function ymKey(year, month) {
-  return `${year}-${String(month).padStart(2, "0")}`;
-}
-
-function ymOfPicker() {
-  return ymKey(state.currentMonth.year, state.currentMonth.month);
-}
-
-function loadCollapsed() {
-  try {
-    return JSON.parse(localStorage.getItem("net-tracker.budget.collapsed") || "{}");
-  } catch {
-    return {};
-  }
-}
-
-function saveCollapsed() {
-  localStorage.setItem("net-tracker.budget.collapsed", JSON.stringify(state.collapsed));
-}
-
-const BUDGET_SORT_OPTIONS = [
-  { value: "amount", label: "Amount (high → low)" },
-  { value: "alpha",  label: "A → Z" },
-];
-
-// localStorage key is inlined inside the helpers below rather than held in
-// a module-scope `const`, so loadBudgetSort() can be safely called during
-// state initialization (TDZ would otherwise throw if it referenced a
-// not-yet-defined const declared after the state object).
-function loadBudgetSort() {
-  const s = localStorage.getItem("net-tracker.budget.sort");
-  return s === "alpha" ? "alpha" : "amount";
-}
-
-function saveBudgetSort(s) {
-  localStorage.setItem("net-tracker.budget.sort", s);
-}
-
-/** Reorder the template draft's categories + items per the given mode and
- *  reassign sort_order on both so the new order survives the save. Unlike
- *  sortedMonth, this is a destructive in-place rewrite — meant to run at
- *  Save / Save new version time, baking the chosen order into the template
- *  so every future stamp starts in that order. */
-function applyDraftSort(draft, mode) {
-  if (!draft || !Array.isArray(draft.categories)) return;
-  const sortItems = (items) => {
-    const sorted = [...items];
-    if (mode === "alpha") {
-      sorted.sort((a, b) =>
-        (a.name || "").localeCompare(b.name || ""),
-      );
-    } else {
-      sorted.sort(
-        (a, b) => Number(b.planned_dkk || 0) - Number(a.planned_dkk || 0),
-      );
-    }
-    return sorted.map((it, i) => ({ ...it, sort_order: i }));
-  };
-  const cats = draft.categories.map((c) => ({
-    ...c,
-    items: sortItems(c.items || []),
-  }));
-  cats.sort((a, b) => {
-    if (mode === "alpha") {
-      const aname = state.categories.find((c) => c.id === a.category_id)?.name || "";
-      const bname = state.categories.find((c) => c.id === b.category_id)?.name || "";
-      return aname.localeCompare(bname);
-    }
-    const at = (a.items || []).reduce((s, i) => s + Number(i.planned_dkk || 0), 0);
-    const bt = (b.items || []).reduce((s, i) => s + Number(i.planned_dkk || 0), 0);
-    return bt - at;
-  });
-  draft.categories = cats.map((c, i) => ({ ...c, sort_order: i }));
-}
-
-/** Return a shallow-cloned month with categories and items reordered
- *  by state.budgetSort. The original `month` and its arrays are not
- *  mutated — keeps re-renders idempotent and lets the source-of-truth
- *  month payload retain its server-side sort_order. */
-function sortedMonth(month) {
-  if (!month || !Array.isArray(month.categories)) return month;
-  const mode = state.budgetSort;
-  const sortItems = (items) => {
-    if (mode === "alpha") {
-      return [...items].sort((a, b) => a.name.localeCompare(b.name));
-    }
-    return [...items].sort(
-      (a, b) => Number(b.planned_dkk) - Number(a.planned_dkk),
-    );
-  };
-  const cats = month.categories.map((c) => ({
-    ...c,
-    items: sortItems(c.items || []),
-  }));
-  cats.sort((a, b) => {
-    if (mode === "alpha") {
-      return a.category_name.localeCompare(b.category_name);
-    }
-    const at = (a.items || []).reduce(
-      (sum, i) => sum + Number(i.planned_dkk || 0),
-      0,
-    );
-    const bt = (b.items || []).reduce(
-      (sum, i) => sum + Number(i.planned_dkk || 0),
-      0,
-    );
-    return bt - at;
-  });
-  return { ...month, categories: cats };
-}
-
-function collapseKey(year, month, monthCategoryId) {
-  return `${year}-${month}-${monthCategoryId}`;
-}
-
-// ── Formatters ───────────────────────────────────────────────────────────
-
-const _MONTH_NAMES = [
-  "January", "February", "March", "April", "May", "June",
-  "July", "August", "September", "October", "November", "December",
-];
-
-function fmtDKK(n) {
-  const num = Number(n);
-  return num.toLocaleString("de-DE", { maximumFractionDigits: 0 }) + " dkk";
-}
-
-function fmtDKKBare(n) {
-  return Number(n).toLocaleString("de-DE", { maximumFractionDigits: 0 });
-}
-
-function fmtMonthLabel(year, month) {
-  return `${_MONTH_NAMES[month - 1]} ${year}`;
-}
-
-function fmtDateTime(iso) {
-  if (!iso) return "";
-  const d = new Date(iso);
-  const yyyy = d.getFullYear();
-  const mm = String(d.getMonth() + 1).padStart(2, "0");
-  const dd = String(d.getDate()).padStart(2, "0");
-  const hh = String(d.getHours()).padStart(2, "0");
-  const min = String(d.getMinutes()).padStart(2, "0");
-  return `${dd}-${mm}-${yyyy} ${hh}:${min}`;
-}
-
-function fmtDateOnly(iso) {
-  if (!iso) return "";
-  const d = new Date(iso);
-  const yyyy = d.getFullYear();
-  const mm = String(d.getMonth() + 1).padStart(2, "0");
-  const dd = String(d.getDate()).padStart(2, "0");
-  return `${dd}-${mm}-${yyyy}`;
-}
-
-// Parse a string the user typed into an amount input. Accepts "1.500", "1500",
-// "1500,50", "1.500,50" — Danish-style. Returns Number, or null if invalid.
-function parseAmount(s) {
-  if (typeof s !== "string") return null;
-  const cleaned = s.replace(/\s/g, "").replaceAll(".", "").replace(",", ".");
-  if (cleaned === "" || cleaned === "-" || cleaned === ".") return null;
-  const n = Number(cleaned);
-  if (Number.isNaN(n) || n < 0) return null;
-  return n;
-}
-
-/**
- * Build a UTF-8-with-BOM CSV string from a stamped month payload.
- * Columns: Category, Item, Planned (dkk), Remaining (dkk), Ticked, Ticked at.
- * Quotes Category/Item per RFC 4180; embedded quotes doubled.
- */
-function buildMonthCsv(month) {
-  const esc = (s) => `"${String(s ?? "").replace(/"/g, '""')}"`;
-  const lines = ['Category,Item,Planned (dkk),Remaining (dkk),Ticked,Ticked at'];
-  for (const cat of (month.categories || [])) {
-    for (const item of (cat.items || [])) {
-      const ticked = (item.ticked_at !== null && item.ticked_at !== undefined) || Number(item.remaining_dkk) <= 0;
-      lines.push([
-        esc(cat.category_name),
-        esc(item.name),
-        Number(item.planned_dkk),
-        Number(item.remaining_dkk),
-        ticked ? "yes" : "no",
-        esc(item.ticked_at || ""),
-      ].join(","));
-    }
-  }
-  return "\uFEFF" + lines.join("\r\n") + "\r\n";
-}
-
-function downloadMonthCsv(month) {
-  const csv = buildMonthCsv(month);
-  const blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
-  const url = URL.createObjectURL(blob);
-  const ym = `${month.year}-${String(month.month).padStart(2, "0")}`;
-  const a = document.createElement("a");
-  a.href = url;
-  a.download = `budget-${ym}.csv`;
-  document.body.appendChild(a);
-  a.click();
-  a.remove();
-  setTimeout(() => URL.revokeObjectURL(url), 0);
-}
-
-/** Format a numeric value as a Danish-style amount string for an input
- *  field's initial value: dots every three digits, no currency suffix. */
-function formatAmountForInput(n) {
-  const num = Number(n);
-  if (!Number.isFinite(num)) return "";
-  return Math.round(num).toLocaleString("de-DE");
-}
-
-/** Live-format an amount input as the user types: dots every three digits
- *  on the integer part, single comma decimal preserved if present, leading
- *  zeros stripped. Caret position is preserved relative to the digits the
- *  user has typed so far. Safe to call on every `input` event. */
-function liveFormatAmountInput(input) {
-  const raw = input.value;
-  const caret = input.selectionStart ?? raw.length;
-  // Count digits before the caret so we can re-anchor it after rewriting.
-  const digitsBeforeCaret = raw.slice(0, caret).replace(/[^\d]/g, "").length;
-  // Strip everything but digits and the first comma; drop any extra commas.
-  const stripped = raw.replace(/[^\d,]/g, "");
-  const firstComma = stripped.indexOf(",");
-  let intPart = firstComma === -1 ? stripped : stripped.slice(0, firstComma);
-  const decPart = firstComma === -1
-    ? ""
-    : stripped.slice(firstComma + 1).replace(/,/g, "").slice(0, 2);
-  // Strip leading zeros but keep a lone "0" so the user can type "0,5" etc.
-  intPart = intPart.replace(/^0+(?=\d)/, "");
-  const formattedInt = intPart.replace(/\B(?=(\d{3})+(?!\d))/g, ".");
-  const formatted = firstComma === -1 ? formattedInt : `${formattedInt},${decPart}`;
-  if (formatted === raw) return; // nothing to do, don't disturb the caret
-  input.value = formatted;
-  // Re-anchor caret: walk the formatted string and stop once we've passed
-  // the same number of digits the user had typed before.
-  let digitsSeen = 0;
-  let newCaret = 0;
-  for (let i = 0; i < formatted.length; i++) {
-    if (digitsSeen >= digitsBeforeCaret) break;
-    newCaret = i + 1;
-    if (/\d/.test(formatted[i])) digitsSeen++;
-  }
-  input.setSelectionRange(newCaret, newCaret);
-}
-
-/** Attach the live-formatter to one input. Idempotent: the input is
- *  tagged with data-amount-fmt so repeated calls don't double-bind. */
-function installAmountFormatter(input) {
-  if (!input || input.dataset.amountFmt === "1") return;
-  input.dataset.amountFmt = "1";
-  input.addEventListener("input", () => liveFormatAmountInput(input));
-}
-
-// ── Derivations ──────────────────────────────────────────────────────────
-
-function itemDone(item) {
-  return item.ticked_at !== null || Number(item.remaining_dkk) <= 0;
-}
-
-function monthPlannedTotal(month) {
-  let total = 0;
-  for (const cat of month.categories) {
-    for (const it of cat.items) total += Number(it.planned_dkk);
-  }
-  return total;
-}
-
-function monthSpentTotal(month) {
-  let total = 0;
-  for (const cat of month.categories) {
-    for (const it of cat.items) total += Number(it.planned_dkk) - Number(it.remaining_dkk);
-  }
-  return total;
-}
-
-function monthOpenCount(month) {
-  let n = 0;
-  for (const cat of month.categories) {
-    for (const it of cat.items) if (!itemDone(it)) n++;
-  }
-  return n;
-}
-
-function catPlannedTotal(cat) {
-  return cat.items.reduce((acc, it) => acc + Number(it.planned_dkk), 0);
-}
-
-function catSpentTotal(cat) {
-  return cat.items.reduce(
-    (acc, it) => acc + (Number(it.planned_dkk) - Number(it.remaining_dkk)),
-    0,
-  );
-}
+import {
+  BUDGET_SORT_OPTIONS,
+  applyDraftSort,
+  bindSimpleDialog,
+  catPlannedTotal,
+  catSpentTotal,
+  collapseKey,
+  ensureDialog,
+  fmtDKK,
+  fmtDKKBare,
+  fmtDateOnly,
+  fmtMonthLabel,
+  formatAmountForInput,
+  headerHtml,
+  installAmountFormatter,
+  installBudgetClickHandler,
+  installBudgetInputHandler,
+  isPastMonth,
+  itemDone,
+  monthOpenCount,
+  monthPlannedTotal,
+  monthSpentTotal,
+  openCategoryPickerDialog,
+  parseAmount,
+  saveBudgetSort,
+  saveCollapsed,
+  sortedMonth,
+  state,
+  templatePlannedTotal,
+  ymKey,
+  ymOfPicker,
+  downloadMonthCsv,
+} from "./budget-common.js";
 
 // ── Entry point ──────────────────────────────────────────────────────────
 
@@ -388,26 +89,6 @@ export async function renderBudget() {
 // view becomes active so deep navigation doesn't survive a tab switch.
 export function resetBudgetSubView() {
   state.subView = "month";
-}
-
-// ── Header (shared across sub-views) ─────────────────────────────────────
-
-function headerHtml({ title, actions = [] }) {
-  // All header buttons render in the same green-primary style as the Add
-  // buttons in Settings — per user preference (no more secondary-button
-  // contrast in the header).
-  const actionsHtml = actions
-    .map(
-      (a) =>
-        `<button type="button" class="btn-primary" data-budget-action="${a.id}">${escapeHtml(a.label)}</button>`,
-    )
-    .join("");
-  return `
-    <div class="budget-header">
-      <div class="budget-header-title">${escapeHtml(title)}</div>
-      <div class="budget-header-actions">${actionsHtml}</div>
-    </div>
-  `;
 }
 
 // ── Month view ──────────────────────────────────────────────────────────
@@ -660,6 +341,7 @@ function bindMonthHandlers(month, _monthExists, _allMonths) {
     if (action === "add-category")  return openCategoryPickerDialog({
       mode: "month",
       excludeIds: month.categories.map((c) => c.category_id),
+      onDone: () => renderBudget(),
     });
     if (action === "toggle-cat")    return toggleCategory(btn.dataset.monthCatId);
     if (action === "add-item")      return openItemDialog({ mode: "add", monthCategoryId: btn.dataset.monthCatId, categoryId: btn.dataset.categoryId });
@@ -672,54 +354,6 @@ function bindMonthHandlers(month, _monthExists, _allMonths) {
     if (action === "unarchive")     return doUnarchive(btn);
   });
   installBudgetInputHandler(null);  // no input listener for the month view
-}
-
-/**
- * Attach a click handler to #budget-root, replacing any previously attached
- * handler. Used by every sub-view so re-renders don't leak listeners.
- *
- * The same handler is also wired up as a keydown handler that fires on
- * Enter / Space when an element with role="button" or role="link" is
- * focused — so non-<button> clickables (collapse toggle, archive month
- * link) are keyboard-accessible.
- */
-function installBudgetClickHandler(handler) {
-  const root = document.getElementById("budget-root");
-  if (!root) return;
-  if (root.__budgetClickHandler) {
-    root.removeEventListener("click", root.__budgetClickHandler);
-  }
-  if (root.__budgetKeyHandler) {
-    root.removeEventListener("keydown", root.__budgetKeyHandler);
-  }
-  root.__budgetClickHandler = handler;
-  if (handler) {
-    root.addEventListener("click", handler);
-    const keyHandler = (e) => {
-      if (e.key !== "Enter" && e.key !== " ") return;
-      const t = e.target;
-      if (!(t instanceof HTMLElement)) return;
-      const role = t.getAttribute("role");
-      if (role !== "button" && role !== "link") return;
-      if (!t.dataset.budgetAction) return;
-      e.preventDefault();
-      handler(e);
-    };
-    root.__budgetKeyHandler = keyHandler;
-    root.addEventListener("keydown", keyHandler);
-  } else {
-    root.__budgetKeyHandler = null;
-  }
-}
-
-function installBudgetInputHandler(handler) {
-  const root = document.getElementById("budget-root");
-  if (!root) return;
-  if (root.__budgetInputHandler) {
-    root.removeEventListener("input", root.__budgetInputHandler);
-  }
-  root.__budgetInputHandler = handler;
-  if (handler) root.addEventListener("input", handler);
 }
 
 function shiftMonth(dir) {
@@ -978,154 +612,6 @@ async function openItemDialog({ mode, item, monthCategoryId, categoryId }) {
   void monthCategoryId;
 }
 
-// ── Category picker dialog ───────────────────────────────────────────────
-
-/**
- * Multi-select category picker. Used by both the month view ("add category
- * to this month") and the template editor ("add category to template").
- *
- * Mode determines what happens when the user clicks Add:
- *   - mode="month"    → POST each selection into the current month
- *   - mode="template" → push each selection into state.templateDraft
- *
- * The dialog is recreated from scratch each open (handlers attached via
- * `onclick`, not addEventListener) so re-opens never accumulate stale
- * listeners — which was the cause of the "one click fires N adds" bug.
- */
-async function openCategoryPickerDialog({ mode, excludeIds = [] }) {
-  let allCats = [];
-  try {
-    allCats = await api.get("/categories");
-  } catch (err) {
-    toast(friendlyError(err, "Couldn't load categories"), "error");
-    return;
-  }
-  state.categories = allCats;
-  const excluded = new Set(excludeIds);
-  const candidates = allCats.filter((c) => !excluded.has(c.id));
-  if (candidates.length === 0) {
-    toast("No more categories to add. Create some in Settings first.");
-    return;
-  }
-
-  const dlgId = "budget-add-categories-dialog";
-  let dlg = document.getElementById(dlgId);
-  if (!dlg) {
-    dlg = document.createElement("dialog");
-    dlg.id = dlgId;
-    document.body.appendChild(dlg);
-  }
-  const title =
-    mode === "template" ? "Add categories to template" : "Add categories to this month";
-  dlg.innerHTML = `
-    <h3 style="margin-top:0">${escapeHtml(title)}</h3>
-    <p class="muted" style="margin-top:0">Tick one or more, then Add.</p>
-    <ul id="budget-cat-pick-list" class="list-rows budget-cat-pick-list">
-      ${candidates
-        .map(
-          (c) => `
-        <li class="budget-cat-pick-row">
-          <div class="budget-cat-pick-label">
-            <input type="checkbox" class="tk-checkbox" data-cat-id="${c.id}" />
-            <span class="cat-dot" style="background: ${escapeHtml(c.color || "var(--muted)")}"></span>
-            <span>${escapeHtml(c.name)}</span>
-          </div>
-        </li>`,
-        )
-        .join("")}
-    </ul>
-    <menu>
-      <button id="budget-cat-pick-cancel" value="cancel" type="button">Cancel</button>
-      <button id="budget-cat-pick-add" class="btn-primary" value="save" type="button" disabled>Add</button>
-    </menu>
-  `;
-
-  const list = dlg.querySelector("#budget-cat-pick-list");
-  const addBtn = dlg.querySelector("#budget-cat-pick-add");
-  const cancelBtn = dlg.querySelector("#budget-cat-pick-cancel");
-
-  const refreshAddState = () => {
-    const n = list.querySelectorAll("input[type='checkbox']:checked").length;
-    addBtn.disabled = n === 0;
-    addBtn.textContent = n > 1 ? `Add ${n} categories` : "Add";
-  };
-  list.onclick = (e) => {
-    if (e.target.matches("input[type='checkbox']")) refreshAddState();
-  };
-
-  cancelBtn.onclick = () => dlg.close();
-
-  addBtn.onclick = async () => {
-    const picked = [...list.querySelectorAll("input[type='checkbox']:checked")].map(
-      (cb) => cb.dataset.catId,
-    );
-    if (picked.length === 0) return;
-    if (mode === "template") {
-      // Push into the local draft; persistence happens via the editor's
-      // Save / Save-as-new-version buttons.
-      for (const id of picked) {
-        state.templateDraft.categories.push({
-          category_id: id,
-          sort_order: state.templateDraft.categories.length,
-          items: [],
-        });
-      }
-      dlg.close();
-      toast(picked.length === 1 ? "Category added" : `${picked.length} categories added`);
-      const root = document.getElementById("budget-root");
-      if (root) renderTemplateEditorHtml(root);
-      return;
-    }
-    // mode === "month" → fire each POST and let some succeed even if others
-    // fail (the categories are independent). Close + refresh always, then
-    // summarize the outcome so the user isn't stuck staring at a dialog with
-    // stale checkboxes for categories that are now added.
-    addBtn.disabled = true;
-    const originalLabel = addBtn.textContent;
-    addBtn.textContent = "Adding…";
-    let added = 0;
-    let dupes = 0;
-    let otherErrs = [];
-    const results = await Promise.allSettled(
-      picked.map((id) =>
-        api.post(
-          `/budget/months/${state.currentMonth.year}/${state.currentMonth.month}/categories`,
-          { category_id: id },
-        ),
-      ),
-    );
-    for (const r of results) {
-      if (r.status === "fulfilled") added++;
-      else if (r.reason?.message === "category_already_in_month") dupes++;
-      else otherErrs.push(r.reason);
-    }
-    addBtn.disabled = false;
-    addBtn.textContent = originalLabel;
-    dlg.close();
-    await renderBudget();
-    // Compose a single summary toast covering all three outcomes. Tone is
-    // "error" iff at least one unknown failure landed; otherwise neutral.
-    // The all-success / all-already-in-month / single-success short forms
-    // are kept for the common cases.
-    if (otherErrs.length === 0 && dupes === 0 && added > 0) {
-      toast(added === 1 ? "Category added" : `${added} categories added`);
-    } else if (otherErrs.length === 0 && added === 0 && dupes > 0) {
-      toast("Those categories are already in this month");
-    } else {
-      const parts = [];
-      if (added > 0) parts.push(`${added} added`);
-      if (dupes > 0) parts.push(`${dupes} already in this month`);
-      if (otherErrs.length > 0) parts.push(`${otherErrs.length} failed`);
-      if (parts.length > 0) {
-        toast(parts.join(" · "), otherErrs.length > 0 ? "error" : "info");
-      }
-    }
-  };
-
-  dlg.showModal();
-  blurAutoFocusedInDialog(dlg);
-}
-
 // ── Template editor sub-view ────────────────────────────────────────────
 
 async function renderTemplateEditor(root) {
@@ -1207,19 +693,9 @@ function renderTemplateEditorHtml(root) {
   `;
 
   bindTemplateEditorHandlers(root);
-}
-
-/** Sum of every item's planned_dkk across every category in the template
- *  draft. Used by both the initial render and the live footer updates. */
-function templatePlannedTotal(tpl) {
-  if (!tpl || !Array.isArray(tpl.categories)) return 0;
-  return tpl.categories.reduce(
-    (sum, c) => sum + (c.items || []).reduce(
-      (s, i) => s + Number(i.planned_dkk || 0),
-      0,
-    ),
-    0,
-  );
+  // Suppress: addableCategories is computed for future inline-picker work
+  // but the current flow uses the multi-select dialog opened on demand.
+  void addableCategories;
 }
 
 /** Refresh the template editor's totals footer in place — same pattern
@@ -1422,6 +898,10 @@ function bindTemplateEditorHandlers(root) {
       openCategoryPickerDialog({
         mode: "template",
         excludeIds: state.templateDraft.categories.map((c) => c.category_id),
+        onDone: () => {
+          const root = document.getElementById("budget-root");
+          if (root) renderTemplateEditorHtml(root);
+        },
       });
     }
   });
@@ -1746,40 +1226,4 @@ function renderArchiveRow(m) {
       </td>
     </tr>
   `;
-}
-
-// ── Dialog helpers ───────────────────────────────────────────────────────
-
-/**
- * Make sure a <dialog> with the given id exists in document.body. If not,
- * create it with the supplied innerHTML. Returns the dialog element. Used
- * for all budget-owned dialogs — keeps them out of index.html.
- */
-function ensureDialog(id, html) {
-  let dlg = document.getElementById(id);
-  if (dlg) return dlg;
-  dlg = document.createElement("dialog");
-  dlg.id = id;
-  dlg.innerHTML = html;
-  document.body.appendChild(dlg);
-  return dlg;
-}
-
-/**
- * Wire the standard "Save / Cancel" footer of a dialog. The save callback
- * returns true → dialog closes; false → stays open (so the user can fix the
- * input). Without a callback, just wires the close buttons.
- */
-function bindSimpleDialog(dlg, onSave = null) {
-  // Cancel / close buttons.
-  dlg.querySelectorAll("[data-budget-dialog-close]").forEach((btn) => {
-    btn.onclick = () => dlg.close();
-  });
-  const saveBtn = dlg.querySelector("[data-budget-dialog-save]");
-  if (saveBtn && onSave) {
-    saveBtn.onclick = async () => {
-      const ok = await onSave(saveBtn);
-      if (ok) dlg.close();
-    };
-  }
 }

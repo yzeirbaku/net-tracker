@@ -156,7 +156,10 @@ header h1 {
   background: var(--surface);
   border-right: 1px solid var(--border);
   box-shadow: 4px 0 20px rgba(0, 0, 0, 0.35);
-  padding: 1.25rem 0.85rem 2.5rem;
+  /* padding-top is 0 on purpose — the brand element below uses
+     min-height to match the page header's actual height, so the
+     drawer's border-bottom lines up with the header's. */
+  padding: 0 0.85rem 2.5rem;
   z-index: 200;
   display: flex; flex-direction: column; gap: 0.35rem;
   transform: translateX(-100%);
@@ -175,7 +178,15 @@ header h1 {
 .menu-backdrop.is-open { opacity: 1; pointer-events: auto; }
 
 .menu-brand {
-  padding: 0.25rem 0.85rem 0.7rem;
+  /* Match the page <header>'s ACTUAL height, not the h1's line-box.
+     Header is a flex row with a 46×46 burger button + h1, so the
+     burger dominates: header height = 2 × 1rem padding + 46px burger
+     = 78px. Setting min-height + flex centering here gives the brand
+     the same box height as the header, so the border-bottom lines
+     up across the drawer/page boundary. */
+  min-height: 78px;
+  display: flex; align-items: center;
+  padding: 0 0.85rem;
   margin-bottom: 0.3rem;
   font-size: 1.3rem; font-weight: 700; letter-spacing: -0.01em;
   line-height: 1.2;
@@ -184,13 +195,8 @@ header h1 {
   border-bottom: 1px solid var(--border);
 }
 @media (max-width: 480px) {
-  /* Brand metrics mirror the main header on mobile so the menu's
-     border-bottom lines up with the page header's border-bottom when
-     the drawer is open. Math: drawer-pad-top (0.55) + brand-pad-top
-     (0.25) + 1.33rem × 1.2 line-height + brand-pad-bottom (0.8)
-     ≈ 3.196rem, matching header (0.8 + 1.596 + 0.8 = 3.196rem). */
-  .menu-dropdown { padding-top: 0.55rem; }
-  .menu-brand { font-size: 1.33rem; padding-bottom: 0.8rem; }
+  /* Mobile header: 2 × 0.8rem padding + 41px burger = 66.6px. */
+  .menu-brand { min-height: 66.6px; font-size: 1.33rem; }
 }
 
 .menu-item {

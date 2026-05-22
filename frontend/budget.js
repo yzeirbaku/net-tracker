@@ -14,9 +14,12 @@
  * by Add/Tick/etc. don't blink.
  *
  * This file is the **dispatcher**: it routes state.subView to the right
- * render function in the sub-view modules. Heavy lifting lives in:
- *   - budget-common.js  — state, formatters, derivations, dialogs, handlers
- *   - (month + template view code will move out in follow-up commits)
+ * render function. Heavy lifting lives in:
+ *   - budget-common.js   — state, formatters, derivations, dialogs, handlers,
+ *                          the multi-select category picker
+ *   - budget-template.js — template editor + version history + version detail
+ * Month + archive sub-views and the month-only dialogs (salary, item) live
+ * here.
  */
 
 import { api } from "./shared/api.js";

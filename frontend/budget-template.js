@@ -84,8 +84,6 @@ function templateIsDirty() {
 
 function renderTemplateEditorHtml(root) {
   const tpl = state.templateDraft;
-  const usedCategoryIds = new Set(tpl.categories.map((c) => c.category_id));
-  const addableCategories = state.categories.filter((c) => !usedCategoryIds.has(c.id));
   const planned = templatePlannedTotal(tpl);
   const salary = Number(tpl.salary_dkk || 0);
   const free = salary - planned;
@@ -125,9 +123,6 @@ function renderTemplateEditorHtml(root) {
   `;
 
   bindTemplateEditorHandlers(root);
-  // Suppress: addableCategories is computed for future inline-picker work
-  // but the current flow uses the multi-select dialog opened on demand.
-  void addableCategories;
 }
 
 /** Refresh the template editor's totals footer in place — same pattern

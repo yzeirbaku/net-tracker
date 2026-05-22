@@ -91,6 +91,25 @@ const _ERROR_MESSAGES = {
   invalid_token: "Sign-in link is invalid.",
   token_used: "Sign-in link has already been used.",
   token_expired: "Sign-in link has expired — request a new one.",
+  // auth — defence-in-depth mappings for codes normally collapsed by
+  // api.js into `unauthorized`; explicit so a future api.js change can't
+  // accidentally surface the raw snake_case.
+  bad_token: "Your session has ended — please sign in again.",
+  missing_bearer: "You're not signed in.",
+  no_session: "Your session has ended — please sign in again.",
+  session_expired: "Your session has ended — please sign in again.",
+  user_missing: "Your session is no longer valid — please sign in again.",
+  // 5xx fallback for the generic server_error sentinel raised by api.js.
+  server_error: "The server is having trouble. Please try again in a moment.",
+  // Internal invariants — `*_missing_after_*` rows should never reach a
+  // user in practice (they fire only if a write-then-read sees nothing in
+  // the same transaction). Mapped so a freak race doesn't leak the code.
+  draft_missing_after_insert: "Budget template hit a snag — please refresh.",
+  template_missing_after_update: "Budget template hit a snag — please refresh.",
+  version_missing_after_insert: "Couldn't save the snapshot — please refresh.",
+  item_missing_after_insert: "Couldn't add that item — please refresh.",
+  item_missing_after_update: "Couldn't update that item — please refresh.",
+  month_category_missing_after_insert: "Couldn't add that category — please refresh.",
   // budget.py
   color_taken: "That color is already used by another category.",
   not_fully_ticked: "Some items are still open — tick them off before archiving.",

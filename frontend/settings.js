@@ -41,8 +41,13 @@ function setTheme(theme) {
   document.querySelectorAll("[data-theme-value]").forEach((btn) => {
     btn.classList.toggle("active", btn.dataset.themeValue === theme);
   });
+  // iOS Safari coalesces the data-theme cascade (which repaints the
+  // indicator's gradient via var(--accent)) with a same-tick transform
+  // mutation, occasionally dropping the transition so the pill snaps
+  // instead of sliding. Defer one frame so the theme commit and the
+  // transform commit land in separate frames.
   const themeSeg = document.querySelector(".seg-group.seg-pill");
-  if (themeSeg) positionSegIndicator(themeSeg);
+  if (themeSeg) requestAnimationFrame(() => positionSegIndicator(themeSeg));
 }
 
 function initTheme() {

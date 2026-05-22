@@ -868,12 +868,18 @@ function updateDonutLegend(root) {
 }
 
 function positionSegIndicator(group) {
-  if (!group) return;
+  if (!group || !document.contains(group)) return;
   const ind = group.querySelector(".seg-indicator");
   const active = group.querySelector("button.active");
   if (!ind || !active) return;
   const w = active.offsetWidth;
-  if (w === 0) return;
+  if (w === 0) {
+    // See settings.js positionSegIndicator for the rationale — retry
+    // next frame so .is-ready always lands, otherwise the next user
+    // click takes the firstTime branch and snaps without animation.
+    requestAnimationFrame(() => positionSegIndicator(group));
+    return;
+  }
   const firstTime = !ind.classList.contains("is-ready");
   if (firstTime) ind.style.transition = "none";
   ind.style.transform = `translateX(${active.offsetLeft}px)`;

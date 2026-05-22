@@ -303,12 +303,23 @@ function bindAccordion(section) {
  * skip the update and re-run after the accordion opens.
  */
 function positionSegIndicator(group) {
-  if (!group) return;
+  if (!group || !document.contains(group)) return;
   const ind = group.querySelector(".seg-indicator");
   const active = group.querySelector("button.active");
   if (!ind || !active) return;
   const w = active.offsetWidth;
-  if (w === 0) return;
+  if (w === 0) {
+    // Width can be 0 when the view's layout isn't settled yet — most
+    // commonly on a quick nav back to Settings, where the rAFs queued
+    // by renderSettings fire before iOS has laid out the new DOM. If
+    // we just return here, the .is-ready class never gets added, and
+    // the very next user click takes the firstTime branch (suppressing
+    // the transition) so the pill snaps instead of sliding. Retry next
+    // frame so .is-ready always lands. document.contains guard above
+    // bails if the group has since been detached (re-render).
+    requestAnimationFrame(() => positionSegIndicator(group));
+    return;
+  }
   // offsetLeft is measured from the parent's padding edge, and our
   // absolute-positioned indicator with `left: 0` aligns to that same
   // padding edge — so translateX matches button.offsetLeft directly.

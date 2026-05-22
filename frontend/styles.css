@@ -169,10 +169,14 @@ header h1 {
 .menu-brand {
   padding: 0.25rem 0.85rem 0.7rem;
   margin-bottom: 0.3rem;
-  font-size: 0.9rem; font-weight: 700; letter-spacing: 0.02em;
+  font-size: 1.3rem; font-weight: 700; letter-spacing: -0.01em;
+  line-height: 1.2;
   background: linear-gradient(90deg, var(--accent) 0%, var(--accent-title-mid) 50%, var(--accent-2) 100%);
   -webkit-background-clip: text; background-clip: text; color: transparent;
   border-bottom: 1px solid var(--border);
+}
+@media (max-width: 480px) {
+  .menu-brand { font-size: 1.16rem; }
 }
 
 .menu-item {
@@ -226,7 +230,9 @@ header h1 {
 }
 .menu-footer-credit {
   position: absolute;
-  bottom: 0.7rem;
+  /* Lift above the iOS PWA home-indicator / screen curvature so the
+     credit stays readable when installed to the home screen. */
+  bottom: calc(0.7rem + env(safe-area-inset-bottom, 0px));
   left: 0.85rem; right: 0.85rem;
   font-size: 0.65rem; letter-spacing: 0.03em;
   color: var(--muted); opacity: 0.55;

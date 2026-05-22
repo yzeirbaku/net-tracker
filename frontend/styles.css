@@ -59,6 +59,11 @@
 * { box-sizing: border-box; }
 html, body { margin: 0; padding: 0; }
 html { -webkit-text-size-adjust: 100%; }
+/* Kill the elastic rubber-band overscroll on iOS Safari PWAs so pulling
+ * down at the top of the page doesn't shove the sticky header along
+ * with the document. Makes the PWA feel native instead of web-y.
+ * Supported on iOS 16+, ignored gracefully on older. */
+html, body { overscroll-behavior: none; }
 body {
   font-family: var(--font);
   background: var(--bg);
@@ -134,14 +139,14 @@ header h1 {
 #menu-btn svg { width: 22px; height: 22px; display: block; }
 
 @media (max-width: 480px) {
-  header { padding: 0.7rem 1rem; gap: 0.15rem; }
-  header h1 { font-size: 1.16rem; }
+  header { padding: 0.8rem 1rem; gap: 0.15rem; }
+  header h1 { font-size: 1.33rem; }
   .icon-btn { width: 40px; height: 40px; font-size: 1.2rem; }
   /* Burger gets a slightly smaller button frame than the base mobile
      .icon-btn so the SVG dominates the chrome. SVG sized larger here for
      the mobile bump the title got. */
-  #menu-btn { width: 36px; height: 36px; }
-  #menu-btn svg { width: 26px; height: 26px; }
+  #menu-btn { width: 41px; height: 41px; }
+  #menu-btn svg { width: 30px; height: 30px; }
 }
 
 /* ---------- drawer ---------- */
@@ -2025,11 +2030,11 @@ input[type="checkbox"].tk-checkbox:checked::after {
   margin: 1rem;
 }
 .home-tile {
-  background: var(--surface, #161c24);
-  border: 1px solid var(--border, #1f2937);
+  background: var(--surface);
+  border: 1px solid var(--border);
   border-radius: 10px;
   padding: 12px;
-  color: var(--text, #e5e7eb);
+  color: var(--fg);
   cursor: pointer;
   transition: border-color 120ms ease;
 }
@@ -2078,7 +2083,7 @@ input[type="checkbox"].tk-checkbox:checked::after {
 .home-free-negative { color: #ef4444; }
 .home-progress {
   height: 6px;
-  background: var(--track, #1f2937);
+  background: var(--surface-2);
   border-radius: 3px;
   overflow: hidden;
   margin-top: 8px;
@@ -2098,7 +2103,7 @@ input[type="checkbox"].tk-checkbox:checked::after {
   justify-content: space-between;
   align-items: center;
   padding: 6px 0;
-  border-top: 1px solid var(--border, #1f2937);
+  border-top: 1px solid var(--border);
   font-size: 0.85rem;
 }
 .home-tile .home-next-row:first-of-type {
@@ -2107,7 +2112,7 @@ input[type="checkbox"].tk-checkbox:checked::after {
 }
 .home-next-left { display: inline-flex; align-items: center; gap: 8px; }
 .home-dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; flex-shrink: 0; }
-.home-next-amount { color: var(--text, #e5e7eb); font-variant-numeric: tabular-nums; }
+.home-next-amount { color: var(--fg); font-variant-numeric: tabular-nums; }
 .home-comp-bar {
   display: flex;
   height: 10px;
@@ -2122,7 +2127,7 @@ input[type="checkbox"].tk-checkbox:checked::after {
   gap: 6px 12px;
   margin-top: 10px;
   font-size: 0.78rem;
-  color: var(--text, #e5e7eb);
+  color: var(--fg);
 }
 .home-comp-legend-item { display: inline-flex; align-items: center; gap: 6px; }
-.home-comp-pct { color: var(--muted, #9ca3af); font-variant-numeric: tabular-nums; }
+.home-comp-pct { color: var(--muted); font-variant-numeric: tabular-nums; }

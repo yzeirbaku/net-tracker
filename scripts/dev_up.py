@@ -39,7 +39,7 @@ DEV_STATE_DIR = REPO_ROOT / ".dev"
 PIDS_PATH = DEV_STATE_DIR / "pids.json"
 
 BACKEND_PORT = 8000
-FRONTEND_PORT = 5500
+FRONTEND_PORT = 5510
 DEV_EMAIL = "dev@local.com"
 DSN = "postgresql://net:net@localhost:5434/nettracker"
 

@@ -121,11 +121,13 @@ docker compose up -d                                     # local Postgres on :54
 ### Dev-spinup skill (preferred)
 
 ```bash
-python scripts/dev_up.py     # Postgres + backend (:8000) + frontend (:5500) + pre-auth'd session
+python scripts/dev_up.py     # Postgres + backend (:8000) + frontend (:5510) + pre-auth'd session
 python scripts/dev_down.py   # kill backend + frontend; leaves Postgres running for fast restart
 ```
 
 `dev_up.py` opens the browser at `/dev-login.html?token=<session>` so you arrive on the app already signed in as `dev@local.com`. The `dev-spinup` skill (`.claude/skills/dev-spinup/SKILL.md`) covers natural-language triggers: "start dev", "spin up", "tear down", "I'm done".
+
+Frontend port is `5510` (not VS Code Live Server's default 5500) because the sibling `gold-bar-tracker` workspace permanently occupies 5500. Windows allows two listeners on the same TCP port via `SO_REUSEADDR` but only the first-bound process accepts connections, so colliding silently broke `127.0.0.1:5500` for net-tracker. Don't change `FRONTEND_PORT` in `scripts/dev_up.py` back to 5500.
 
 ## Verification
 

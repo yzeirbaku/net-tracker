@@ -345,13 +345,25 @@ function bindTemplateEditorHandlers(root) {
   // File-input change → import flow. Wired here (not delegated) because
   // <input type="file"> doesn't bubble click through to the icon button;
   // the click is forwarded above and this listener handles the picked file.
+  // The Upload button is disabled for the duration of parse + confirm +
+  // draft replacement so a second click while a confirm prompt is open
+  // can't kick off a concurrent import that races on state.templateDraft.
+  // withBusyButton would clobber the inline SVG with a text label, so we
+  // toggle .disabled manually — the icon-button family already paints a
+  // visibly-disabled state via the standard [disabled] CSS.
   const fileInput = document.getElementById("tpl-csv-file-input");
   if (fileInput) {
     fileInput.onchange = async (e) => {
       const file = e.target.files?.[0];
       if (!file) return;
-      await importTemplateCsv(file, root);
-      fileInput.value = "";
+      const uploadBtn = root.querySelector('[data-budget-action="tpl-import-csv"]');
+      if (uploadBtn) uploadBtn.disabled = true;
+      try {
+        await importTemplateCsv(file, root);
+      } finally {
+        if (uploadBtn) uploadBtn.disabled = false;
+        fileInput.value = "";
+      }
     };
   }
 }
@@ -396,7 +408,9 @@ async function importTemplateCsv(file, root) {
     const item = cells[1].trim();
     const amountStr = cells[2].trim();
     const isSalary = cat === "Salary" && item === "";
-    if (!/^\d+(\.\d+)?$/.test(amountStr)) {
+    // Template amounts are whole-DKK (matches the rest of the data model).
+    // Reject decimals and any non-digit cruft up front.
+    if (!/^\d+$/.test(amountStr)) {
       toast(`Couldn't import — invalid amount on row ${r + 1}.`, "error");
       return;
     }

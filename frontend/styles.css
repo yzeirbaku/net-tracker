@@ -1421,6 +1421,17 @@ dialog menu button[value="save"].dialog-danger-confirm {
 
 .budget-export-btn { margin-left: auto; }
 
+/* Right-aligned icon-button row above the salary block in the template
+ * editor. Same icon-button family as the month export; the toolbar just
+ * holds them on their own line because the template header doesn't have a
+ * month-picker row to host them. */
+.budget-template-toolbar {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.4rem;
+  margin-bottom: 0.6rem;
+}
+
 .budget-nav {
   background: transparent;
   border: 1px solid var(--border);

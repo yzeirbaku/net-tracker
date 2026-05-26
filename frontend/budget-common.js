@@ -270,6 +270,89 @@ export function downloadMonthCsv(month) {
   setTimeout(() => URL.revokeObjectURL(url), 0);
 }
 
+/**
+ * Build a UTF-8-with-BOM CSV string from a template-shaped object. Three
+ * columns: Category, Item, Planned (dkk). A single meta row "Salary,,N"
+ * carries the salary so the file round-trips a complete template. Items
+ * are emitted in (category.sort_order, item.sort_order) order; the salary
+ * row is always emitted (even if salary = 0) so the format is regular.
+ */
+export function buildTemplateCsv(template, categories) {
+  const esc = (s) => `"${String(s ?? "").replace(/"/g, '""')}"`;
+  const lines = ['Category,Item,Planned (dkk)'];
+  const salary = Number(template?.salary_dkk || 0);
+  lines.push([esc("Salary"), esc(""), salary].join(","));
+  const nameById = new Map((categories || []).map((c) => [c.id, c.name]));
+  const cats = [...(template?.categories || [])].sort(
+    (a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0),
+  );
+  for (const cat of cats) {
+    const name = nameById.get(cat.category_id) || "Unknown category";
+    const items = [...(cat.items || [])].sort(
+      (a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0),
+    );
+    for (const item of items) {
+      lines.push([esc(name), esc(item.name), Number(item.planned_dkk)].join(","));
+    }
+  }
+  return "\uFEFF" + lines.join("\r\n") + "\r\n";
+}
+
+export function downloadTemplateCsv(template, categories) {
+  const csv = buildTemplateCsv(template, categories);
+  const blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = "budget-template.csv";
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 0);
+}
+
+/**
+ * Parse a CSV string into an array of rows (each row = array of cell strings).
+ * Handles CRLF/LF line endings, double-quoted fields, and embedded quotes
+ * via the "" escape. Trailing empty lines are dropped. A leading BOM is
+ * stripped. Returns [] on empty input.
+ */
+export function parseCsv(text) {
+  if (typeof text !== "string" || text === "") return [];
+  if (text.charCodeAt(0) === 0xFEFF) text = text.slice(1);
+  const rows = [];
+  let row = [];
+  let cell = "";
+  let inQuotes = false;
+  let i = 0;
+  while (i < text.length) {
+    const ch = text[i];
+    if (inQuotes) {
+      if (ch === '"') {
+        if (text[i + 1] === '"') { cell += '"'; i += 2; continue; }
+        inQuotes = false; i++; continue;
+      }
+      cell += ch; i++; continue;
+    }
+    if (ch === '"') { inQuotes = true; i++; continue; }
+    if (ch === ",") { row.push(cell); cell = ""; i++; continue; }
+    if (ch === "\r") {
+      if (text[i + 1] === "\n") i++;
+      row.push(cell); rows.push(row); row = []; cell = ""; i++; continue;
+    }
+    if (ch === "\n") {
+      row.push(cell); rows.push(row); row = []; cell = ""; i++; continue;
+    }
+    cell += ch; i++;
+  }
+  row.push(cell);
+  rows.push(row);
+  while (rows.length && rows[rows.length - 1].length === 1 && rows[rows.length - 1][0] === "") {
+    rows.pop();
+  }
+  return rows;
+}
+
 /** Format a numeric value as a Danish-style amount string for an input
  *  field's initial value: dots every three digits, no currency suffix. */
 export function formatAmountForInput(n) {

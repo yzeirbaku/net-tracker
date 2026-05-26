@@ -28,6 +28,7 @@ import { paintViewError } from "./shared/view-loading.js";
 import {
   applyDraftSort,
   bindSimpleDialog,
+  downloadTemplateCsv,
   ensureDialog,
   fmtDKK,
   fmtDateOnly,
@@ -38,6 +39,7 @@ import {
   installBudgetInputHandler,
   openCategoryPickerDialog,
   parseAmount,
+  parseCsv,
   saveCollapsed,
   state,
   templatePlannedTotal,
@@ -100,6 +102,11 @@ function renderTemplateEditorHtml(root) {
           { id: "tpl-back", label: "Back to budget" },
         ],
       })}
+      <div class="budget-template-toolbar">
+        <button type="button" class="budget-icon-btn" data-budget-action="tpl-import-csv" aria-label="Upload template CSV" title="Upload template CSV"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg></button>
+        <button type="button" class="budget-icon-btn" data-budget-action="tpl-export-csv" aria-label="Download template CSV" title="Download template CSV"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg></button>
+        <input type="file" id="tpl-csv-file-input" accept=".csv,text/csv" hidden />
+      </div>
       <div class="budget-salary">
         <div>
           <div class="budget-salary-label">Salary</div>
@@ -327,8 +334,144 @@ function bindTemplateEditorHandlers(root) {
           if (root) renderTemplateEditorHtml(root);
         },
       });
+    } else if (action === "tpl-export-csv") {
+      downloadTemplateCsv(state.templateDraft, state.categories);
+    } else if (action === "tpl-import-csv") {
+      const input = document.getElementById("tpl-csv-file-input");
+      if (input) input.click();
     }
   });
+
+  // File-input change → import flow. Wired here (not delegated) because
+  // <input type="file"> doesn't bubble click through to the icon button;
+  // the click is forwarded above and this listener handles the picked file.
+  const fileInput = document.getElementById("tpl-csv-file-input");
+  if (fileInput) {
+    fileInput.onchange = async (e) => {
+      const file = e.target.files?.[0];
+      if (!file) return;
+      await importTemplateCsv(file, root);
+      fileInput.value = "";
+    };
+  }
+}
+
+// Import a CSV file as the new template draft. Parses + validates client-
+// side, surfaces friendly toasts on failure, and (on success + user confirm)
+// replaces state.templateDraft without saving — the user reviews and clicks
+// Save like any other edit. Stale baseline is intentional so the editor
+// visibly shows dirty state.
+async function importTemplateCsv(file, root) {
+  let text;
+  try {
+    text = await file.text();
+  } catch {
+    toast("Couldn't read that file as a template CSV.", "error");
+    return;
+  }
+  const rows = parseCsv(text);
+  if (rows.length === 0) {
+    toast("Couldn't read that file as a template CSV.", "error");
+    return;
+  }
+  const header = rows[0].map((c) => c.trim());
+  const expected = ["Category", "Item", "Planned (dkk)"];
+  if (header.length !== 3 || header[0] !== expected[0] || header[1] !== expected[1] || header[2] !== expected[2]) {
+    toast("Couldn't read that file as a template CSV.", "error");
+    return;
+  }
+
+  let salary = 0;
+  let salarySeen = false;
+  const itemRows = []; // { categoryName, name, planned, fileRow }
+  for (let r = 1; r < rows.length; r++) {
+    const cells = rows[r];
+    // Skip wholly blank rows (e.g. trailing blank line that wasn't stripped).
+    if (cells.length === 1 && cells[0].trim() === "") continue;
+    if (cells.length !== 3) {
+      toast(`Couldn't import — invalid row ${r + 1}.`, "error");
+      return;
+    }
+    const cat = cells[0].trim();
+    const item = cells[1].trim();
+    const amountStr = cells[2].trim();
+    const isSalary = cat === "Salary" && item === "";
+    if (!/^\d+(\.\d+)?$/.test(amountStr)) {
+      toast(`Couldn't import — invalid amount on row ${r + 1}.`, "error");
+      return;
+    }
+    const amount = Number(amountStr);
+    if (!Number.isFinite(amount) || amount < 0) {
+      toast(`Couldn't import — invalid amount on row ${r + 1}.`, "error");
+      return;
+    }
+    if (isSalary) {
+      salary = amount;
+      salarySeen = true;
+      continue;
+    }
+    if (cat === "" || item === "") {
+      toast(`Couldn't import — invalid row ${r + 1}.`, "error");
+      return;
+    }
+    itemRows.push({ categoryName: cat, name: item, planned: amount, fileRow: r + 1 });
+  }
+
+  if (itemRows.length === 0) {
+    toast("That CSV has no items.", "error");
+    return;
+  }
+
+  const idByName = new Map(state.categories.map((c) => [c.name, c.id]));
+  const unknown = [];
+  for (const row of itemRows) {
+    if (!idByName.has(row.categoryName) && !unknown.includes(row.categoryName)) {
+      unknown.push(row.categoryName);
+    }
+  }
+  if (unknown.length) {
+    toast(
+      `Couldn't import — unknown categories: ${unknown.join(", ")}. Add them in Settings → Categories first.`,
+      "error",
+    );
+    return;
+  }
+
+  const ok = await confirmPrompt({
+    title: "Replace template?",
+    message: "This will replace your current template draft with the uploaded CSV. Any unsaved edits will be lost.",
+    okLabel: "Replace",
+  });
+  if (!ok) return;
+
+  // Build new draft: group items by category_id in first-appearance order,
+  // assigning sort_order by 0-indexed position in both dimensions.
+  const byCategory = new Map(); // category_id → { sort_order, items: [] }
+  for (const row of itemRows) {
+    const cid = idByName.get(row.categoryName);
+    if (!byCategory.has(cid)) {
+      byCategory.set(cid, { sort_order: byCategory.size, items: [] });
+    }
+    const bucket = byCategory.get(cid);
+    bucket.items.push({
+      name: row.name,
+      planned_dkk: String(row.planned),
+      sort_order: bucket.items.length,
+    });
+  }
+  const newDraft = {
+    salary_dkk: String(salarySeen ? salary : 0),
+    categories: [...byCategory.entries()].map(([category_id, bucket]) => ({
+      category_id,
+      sort_order: bucket.sort_order,
+      items: bucket.items,
+    })),
+  };
+
+  state.templateDraft = newDraft;
+  // Leave templateBaseline stale so templateIsDirty() returns true.
+  if (root) renderTemplateEditorHtml(root);
+  toast("Template loaded — review and Save.");
 }
 
 async function saveTemplateDraft(btn, asVersion) {

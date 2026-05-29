@@ -10,6 +10,11 @@ import {
   withBusyButton,
 } from "./shared/ui.js";
 import { paintViewError, paintViewLoading } from "./shared/view-loading.js";
+import {
+  getEffectiveYearMonth,
+  isAdvanceActive,
+  setAdvanceMonthEnabled,
+} from "./shared/effective-month.js";
 
 const ASSET_CLASSES = ["Cash", "Stocks", "Crypto", "Precious Metals", "Pension", "Other"];
 const ACCOUNT_KINDS = [
@@ -54,6 +59,32 @@ function initTheme() {
   const saved = localStorage.getItem("net-tracker.theme");
   if (saved === "light" || saved === "dark") setTheme(saved);
   else setTheme("dark");
+}
+
+const MONTH_NAMES = [
+  "January", "February", "March", "April", "May", "June",
+  "July", "August", "September", "October", "November", "December",
+];
+
+function advanceDetailText() {
+  if (!isAdvanceActive()) {
+    return "Treat next calendar month as the current month on Home and Budget. Useful near payday. Auto-clears when next month begins.";
+  }
+  const { year, month } = getEffectiveYearMonth();
+  return `Showing ${MONTH_NAMES[month - 1]} ${year} as the current month.`;
+}
+
+function setAdvanceMonth(value) {
+  setAdvanceMonthEnabled(value === "on");
+  const seg = document.querySelector('.seg-group[aria-label="Current month"]');
+  if (seg) {
+    seg.querySelectorAll("button").forEach((b) => {
+      b.classList.toggle("active", b.dataset.advanceValue === value);
+    });
+    positionSegIndicator(seg);
+  }
+  const detail = document.getElementById("advance-month-detail");
+  if (detail) detail.textContent = advanceDetailText();
 }
 
 export async function renderSettings() {
@@ -114,6 +145,20 @@ function renderHtml() {
         <button type="button" data-theme-value="light" role="radio">Light</button>
         <button type="button" data-theme-value="dark" role="radio">Dark</button>
       </div>
+    </div>
+
+    <div class="card">
+      <h2>Current month</h2>
+      <div class="seg-group seg-pill" role="radiogroup" aria-label="Current month">
+        <div class="seg-indicator"></div>
+        <button type="button" data-advance-value="off" role="radio"${
+          isAdvanceActive() ? "" : ' class="active"'
+        }>Off</button>
+        <button type="button" data-advance-value="on" role="radio"${
+          isAdvanceActive() ? ' class="active"' : ""
+        }>On</button>
+      </div>
+      <p class="muted-tiny" id="advance-month-detail" style="margin-top:0.6rem">${advanceDetailText()}</p>
     </div>
 
     <section class="settings-section" data-section="categories" data-open="false">
@@ -364,6 +409,10 @@ function bindHandlers() {
 
   document.querySelectorAll("[data-theme-value]").forEach((btn) => {
     btn.addEventListener("click", () => setTheme(btn.dataset.themeValue));
+  });
+
+  document.querySelectorAll("[data-advance-value]").forEach((btn) => {
+    btn.addEventListener("click", () => setAdvanceMonth(btn.dataset.advanceValue));
   });
 
   // Category name input drives both the color picker visibility AND the

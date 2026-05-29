@@ -9,6 +9,7 @@ import { api } from "./shared/api.js";
 import { escapeHtml, friendlyError } from "./shared/ui.js";
 import { paintViewLoading, paintViewError } from "./shared/view-loading.js";
 import { ASSET_CLASS_COLORS, ASSET_CLASS_ORDER, getNetWorthViewMode } from "./networth.js";
+import { getEffectiveYearMonth } from "./shared/effective-month.js";
 
 const DKK_TO_EUR_RATE = 7.46038;
 
@@ -24,8 +25,8 @@ function isoMinusDays(days) {
 }
 
 function currentYearMonth() {
-  const d = new Date();
-  return { year: d.getFullYear(), month: d.getMonth() + 1 };
+  // Honors the Settings "current month" advance toggle.
+  return getEffectiveYearMonth();
 }
 
 function fmtDot(n) {

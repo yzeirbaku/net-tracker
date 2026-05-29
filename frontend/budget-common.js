@@ -23,6 +23,10 @@ import {
   toast,
 } from "./shared/ui.js";
 import { api } from "./shared/api.js";
+import {
+  ADVANCE_MONTH_EVENT,
+  getEffectiveYearMonth,
+} from "./shared/effective-month.js";
 
 // ── State ────────────────────────────────────────────────────────────────
 
@@ -50,8 +54,17 @@ export const state = {
 };
 
 export function defaultMonth() {
-  const t = new Date();
-  return { year: t.getFullYear(), month: t.getMonth() + 1 };
+  return getEffectiveYearMonth();
+}
+
+// When the Settings "current month" toggle flips, snap the budget view
+// back to its default landing so the next visit lands on the effective
+// month. Picking a month via the picker still wins for the rest of the
+// session, but the toggle is an explicit "change my default" action.
+if (typeof window !== "undefined") {
+  window.addEventListener(ADVANCE_MONTH_EVENT, () => {
+    state.currentMonth = defaultMonth();
+  });
 }
 
 // True when (year, month) is strictly before the current calendar month.

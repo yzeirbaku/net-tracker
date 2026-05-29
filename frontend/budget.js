@@ -211,7 +211,7 @@ function renderMonthBodyHtml(rawMonth) {
     <div class="budget-footer">
       <div class="budget-footer-row"><span>Total planned</span><span>${escapeHtml(fmtDKK(planned))}</span></div>
       <div class="budget-footer-row"><span>Spent so far</span><span>${escapeHtml(fmtDKK(spent))}</span></div>
-      <div class="budget-footer-row"><span>Still to spend</span><span>${escapeHtml(fmtDKK(planned - spent))} · ${openCount} ${openCount === 1 ? "item" : "items"}</span></div>
+      <div class="budget-footer-row"><span>Still to spend</span><span>${escapeHtml(fmtDKK(planned - spent))}</span></div>
       <div class="budget-footer-row big"><span>Salary</span><span>${escapeHtml(fmtDKK(salary))}</span></div>
       <div class="budget-footer-row ${free >= 0 ? "remain" : "negative"}"><span>Free money</span><span>${escapeHtml(fmtDKK(free))}</span></div>
       ${

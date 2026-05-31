@@ -1,6 +1,6 @@
 # net-tracker — Claude guide
 
-Personal-finance PWA. Single-user, magic-link auth. Two live subsystems (Budget / Net Worth) + a Home dashboard, all sharing a single category taxonomy. Stack modeled on `gold-bar-tracker` (sibling repo) — FastAPI on Render, vanilla-JS PWA on Cloudflare Pages, Neon Postgres, Resend for magic-link email.
+Personal-finance PWA. Single-user, magic-link auth. Two live subsystems (Budget / Net Worth) + a Home dashboard, all sharing a single category taxonomy. Stack modeled on `gold-bar-tracker` (sibling repo) — FastAPI behind Caddy on an Oracle Cloud Always-Free VM, vanilla-JS PWA on Cloudflare Pages, Neon Postgres, Resend for magic-link email.
 
 **Plans 1, 2, 3 + Home dashboard shipped** (auth, accounts/categories CRUD, Net Worth, Budget, Home). Plan 5 (Envelopes) is not built; Plan 4 (Spending/CSV) was scrapped — see `docs/superpowers/specs/2026-05-21-home-dashboard-design.md` for the cleanup. Original design lives in `docs/superpowers/specs/2026-05-18-net-tracker-design.md`; the Plan 3 spec is `docs/superpowers/specs/2026-05-20-budget-plan-3-design.md`.
 
@@ -77,7 +77,7 @@ Magic-link → opaque session bearer tokens in `localStorage` (`net-tracker.sess
 - `ui.js::withBusyButton(btn, busyLabel, fn)` — see UI/UX rules below.
 - `ui.js::friendlyError(err, fallbackPrefix)` — see UI/UX rules below.
 - `ui.js::openDialog(id)` / `blurAutoFocusedInDialog(dlg)` — see UI/UX rules below.
-- `view-loading.js::paintViewLoading(rootEl, _label)` / `paintViewError(rootEl, message)` — spinner-card pattern with the unified "Connecting…" copy across views (label arg accepted but ignored). Painted on first visit so a Render cold-start never leaves a blank page; skipped on re-renders (use `root.firstElementChild` as the sentinel) so Add/Delete don't blink.
+- `view-loading.js::paintViewLoading(rootEl, _label)` / `paintViewError(rootEl, message)` — spinner-card pattern with the unified "Connecting…" copy across views (label arg accepted but ignored). Painted on first visit so a backend cold-start never leaves a blank page; skipped on re-renders (use `root.firstElementChild` as the sentinel) so Add/Delete don't blink.
 
 ## UI/UX rules
 
@@ -100,13 +100,9 @@ Magic-link → opaque session bearer tokens in `localStorage` (`net-tracker.sess
 
 ## What MVP intentionally excludes
 
-- No automatic / ML categorization — all rules are deterministic substring matches, user-confirmed (Plan 4).
-- No cron jobs (no QStash). Everything user-initiated.
-- No multi-currency, no automated bank API, no alerts beyond magic-link sign-in.
-- No cross-coupling between Budget ticks and Spending CSV rows — they share categories, nothing else.
-- No stamping past months — only current calendar month and future are stampable.
-- No re-stamp / overwrite-stamp — once a `(year, month)` is stamped, it's independent. Deferred to a future plan if needed.
-- No "restore from version" on template snapshots — version history is read-only inspection only.
+- No cron jobs, multi-currency, automated bank APIs, or alerts beyond magic-link sign-in. Everything user-initiated.
+- No stamping or re-stamping past months. Once `(year, month)` is stamped, it's independent of the template — overwrite/restore is deferred to a future plan.
+- No "restore from version" on template snapshots — version history is read-only inspection.
 
 ## Local dev
 
@@ -139,3 +135,14 @@ pytest tests/ -v
 ```
 
 CI (`.github/workflows/tests.yml`) runs all three on push/PR to `main` against a Postgres-16 sidecar container. The suite covers auth, accounts, categories (incl. color uniqueness), balance entries, net-worth math + endpoint, db migrations, and the full Budget surface (template lifecycle, stamp, item PATCH matrix, archive guard, cross-user isolation).
+
+## Production deploy
+
+- **Backend:** FastAPI in Docker on an **Oracle Cloud Always-Free VM** (Ubuntu 24.04, AMD E2.1.Micro, Frankfurt), fronted by **Caddy** with auto-renewing Let's Encrypt TLS. Public URL: `https://yzeir-net.duckdns.org` (DuckDNS free dynamic-DNS pointing at the VM's static public IP).
+- **Frontend:** Cloudflare Pages at `https://net-tracker.pages.dev`. `BACKEND_URL` env var is read at build time and written into `frontend/config.js`. The CSP `connect-src` allowlist in `frontend/_headers` MUST include the backend host — update both env var and CSP if the host ever changes.
+- **DB:** Neon Postgres (separate DB from gold-bar-tracker).
+- **Email:** Resend.
+- **Schema migrations:** `db.py::SCHEMA_SQL` runs idempotently on every backend boot, so deploys apply schema changes automatically — no manual step.
+- **Deploy = `git pull` on the VM + `docker compose up -d --build`.** Use the **`deploy` skill** (`.claude/skills/deploy/SKILL.md`) — natural-language triggers: "deploy", "ship it", "deploy net-tracker". The skill reads VM connection details from the gitignored `.claude/skills/deploy/deploy.env.local` (template inside the SKILL.md "Setup" section). Pre-flight: code must be pushed to `origin/main` first.
+- **VM-local files (not in this repo):** `Dockerfile` (in `repo/backend/`), `docker-compose.yml`, `Caddyfile`, `.env`. Reconstruct from the SKILL.md if the VM is ever recreated.
+- **Secret rotation:** SSH in, edit `~/apps/net-tracker/.env`, then `sudo docker compose up -d --force-recreate backend`. The deploy skill does NOT touch `.env`.

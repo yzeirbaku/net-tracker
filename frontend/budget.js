@@ -237,8 +237,8 @@ function renderCategoryHtml(cat, archived) {
           <span>${escapeHtml(cat.category_name)}</span>
         </span>
         <span class="budget-cat-totals">
-          <span class="muted">spent ${escapeHtml(fmtDKKBare(spent))}</span>
-          <span>of ${escapeHtml(fmtDKK(planned))}</span>
+          <span>${escapeHtml(fmtDKKBare(spent))}/${escapeHtml(fmtDKK(planned))}</span>
+          <span class="muted">spent</span>
           ${
             archived
               ? ""

@@ -194,7 +194,7 @@ function renderMonthBodyHtml(rawMonth) {
         <div class="budget-salary-label">Salary</div>
         <div class="budget-salary-amount">${escapeHtml(fmtDKK(salary))}</div>
       </div>
-      ${archived ? "" : '<button type="button" data-budget-action="edit-salary" class="budget-icon-btn" title="Edit salary" aria-label="Edit salary"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/></svg></button>'}
+      ${archived ? "" : '<button type="button" data-budget-action="edit-salary" class="budget-icon-btn" title="Edit salary" aria-label="Edit salary"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 1 1 3 3L7 19l-4 1 1-4 12.5-12.5z"/></svg></button>'}
     </div>
     ${
       hasCategories
@@ -237,8 +237,7 @@ function renderCategoryHtml(cat, archived) {
           <span>${escapeHtml(cat.category_name)}</span>
         </span>
         <span class="budget-cat-totals">
-          <span>${escapeHtml(fmtDKKBare(spent))}/${escapeHtml(fmtDKK(planned))}</span>
-          <span class="muted">spent</span>
+          <span class="muted">${escapeHtml(fmtDKKBare(spent))}/${escapeHtml(fmtDKK(planned))} spent</span>
           ${
             archived
               ? ""
@@ -278,7 +277,7 @@ function renderItemHtml(item, archived) {
         archived
           ? ""
           : `<span class="budget-item-actions">
-              <button type="button" class="budget-icon-btn" data-budget-action="edit-item" data-item-id="${item.id}" title="Edit / partial pay" aria-label="Edit item"${done ? " disabled" : ""}><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/></svg></button>
+              <button type="button" class="budget-icon-btn" data-budget-action="edit-item" data-item-id="${item.id}" title="Edit / partial pay" aria-label="Edit item"${done ? " disabled" : ""}><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 1 1 3 3L7 19l-4 1 1-4 12.5-12.5z"/></svg></button>
               <button type="button" class="budget-icon-btn" data-budget-action="${done ? "untick" : "tick"}" data-item-id="${item.id}" title="${done ? "Untick" : "Tick complete"}" aria-label="${done ? "Untick" : "Tick complete"}">${done ? '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/></svg>' : '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 6 9 17l-5-5"/></svg>'}</button>
               <button type="button" class="budget-icon-btn budget-icon-btn-danger" data-budget-action="delete-item" data-item-id="${item.id}" title="Delete item" aria-label="Delete item"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 6 6 18M6 6l12 12"/></svg></button>
             </span>`
@@ -535,9 +534,11 @@ async function openItemDialog({ mode, item, monthCategoryId, categoryId }) {
     <label for="budget-item-planned">Planned amount (DKK)</label>
     <input id="budget-item-planned" type="text" inputmode="decimal" />
     <div id="budget-item-remaining-wrap" hidden>
+      <label for="budget-item-spent">Spent (DKK)</label>
+      <input id="budget-item-spent" type="text" inputmode="decimal" placeholder="optional — subtracts from Remaining" />
       <label for="budget-item-remaining">Remaining (DKK)</label>
       <input id="budget-item-remaining" type="text" inputmode="decimal" />
-      <p class="muted-tiny">Lower this as you pay. At 0, the item is auto-ticked.</p>
+      <p class="muted-tiny">Type Spent to subtract, or edit Remaining directly. At 0, the item is auto-ticked.</p>
     </div>
     <menu>
       <button value="cancel" data-budget-dialog-close type="button">Cancel</button>
@@ -549,6 +550,7 @@ async function openItemDialog({ mode, item, monthCategoryId, categoryId }) {
   const plannedInput = dlg.querySelector("#budget-item-planned");
   const remainingWrap = dlg.querySelector("#budget-item-remaining-wrap");
   const remainingInput = dlg.querySelector("#budget-item-remaining");
+  const spentInput = dlg.querySelector("#budget-item-spent");
 
   if (isAdd) {
     nameInput.value = "";
@@ -559,9 +561,32 @@ async function openItemDialog({ mode, item, monthCategoryId, categoryId }) {
     plannedInput.value = formatAmountForInput(item.planned_dkk);
     remainingWrap.hidden = false;
     remainingInput.value = formatAmountForInput(item.remaining_dkk);
+    spentInput.value = "";
   }
   installAmountFormatter(plannedInput);
   installAmountFormatter(remainingInput);
+  installAmountFormatter(spentInput);
+
+  // Spent ↔ Remaining calculator: typing in Spent live-recalculates Remaining
+  // as max(0, original - spent); typing in Remaining clears Spent. Listeners
+  // are wired once (ensureDialog caches the DOM) and read the current item's
+  // original remaining via dataset, so re-opens don't accumulate handlers.
+  if (!isAdd) {
+    spentInput.dataset.originalRemaining = String(Number(item.remaining_dkk));
+    if (!spentInput.dataset.calcWired) {
+      spentInput.dataset.calcWired = "1";
+      spentInput.addEventListener("input", () => {
+        const orig = Number(spentInput.dataset.originalRemaining);
+        const spent = parseAmount(spentInput.value);
+        remainingInput.value = formatAmountForInput(
+          spent === null ? orig : Math.max(0, orig - spent),
+        );
+      });
+      remainingInput.addEventListener("input", () => {
+        if (spentInput.value !== "") spentInput.value = "";
+      });
+    }
+  }
 
   bindSimpleDialog(dlg, async (saveBtn) => {
     const name = nameInput.value.trim();

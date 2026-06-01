@@ -17,9 +17,9 @@
  */
 
 import {
-  blurAutoFocusedInDialog,
   escapeHtml,
   friendlyError,
+  showDialog,
   toast,
 } from "./shared/ui.js";
 import { api } from "./shared/api.js";
@@ -736,6 +736,5 @@ export async function openCategoryPickerDialog({ mode, excludeIds = [], onDone }
     }
   };
 
-  dlg.showModal();
-  blurAutoFocusedInDialog(dlg);
+  showDialog(dlg);
 }

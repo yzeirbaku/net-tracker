@@ -1,10 +1,10 @@
 import { api } from "./shared/api.js";
 import { createDatePicker } from "./shared/datepicker.js";
 import {
-  blurAutoFocusedInDialog,
   confirmPrompt,
   escapeHtml,
   friendlyError,
+  showDialog,
   toast,
   withBusyButton,
 } from "./shared/ui.js";
@@ -119,8 +119,7 @@ async function openBalanceDialog({ accountId, accountName, date = null, value = 
   const exists = history.entries.some((e) => e.entry_date === dialogState.datepicker.getValue());
   hint.hidden = !exists;
   if (!dlg.open) {
-    dlg.showModal();
-    blurAutoFocusedInDialog(dlg);
+    showDialog(dlg);
   }
 }
 
@@ -412,7 +411,7 @@ function renderHtml() {
                   <div class="networth-account-meta">${a.latest_entry_date ? `as of ${fmtDate(a.latest_entry_date)}` : "No balance yet"}</div>
                 </div>
                 <div class="networth-account-value">${a.latest_value_dkk != null ? fmtDKK(a.latest_value_dkk) : "—"}</div>
-                <button class="btn-primary networth-update-btn" data-account-id="${a.id}" data-account-name="${escapeHtml(a.name)}" type="button">${a.latest_entry_date ? "Update" : "Add"}</button>
+                <button class="btn-primary networth-update-btn" data-account-id="${a.id}" data-account-name="${escapeHtml(a.name)}" data-latest-value="${a.latest_value_dkk != null ? a.latest_value_dkk : ""}" type="button">${a.latest_entry_date ? "Update" : "Add"}</button>
               </div>`,
               )
               .join("")}
@@ -454,6 +453,7 @@ function bindAccountRows(root) {
       openBalanceDialog({
         accountId: btn.dataset.accountId,
         accountName: btn.dataset.accountName,
+        value: btn.dataset.latestValue ? btn.dataset.latestValue : null,
       });
     });
   });
@@ -479,8 +479,7 @@ async function openHistoryDialog(account) {
   const dlg = document.getElementById("account-history-dialog");
   document.getElementById("ah-title").textContent = `${account.name} — history`;
   if (!dlg.open) {
-    dlg.showModal();
-    blurAutoFocusedInDialog(dlg);
+    showDialog(dlg);
   }
   await refreshHistoryDialog();
 }

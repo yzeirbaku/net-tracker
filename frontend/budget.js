@@ -26,10 +26,10 @@ import { api } from "./shared/api.js";
 import { createMonthPicker } from "./shared/datepicker.js";
 import { createDropdown } from "./shared/dropdown.js";
 import {
-  blurAutoFocusedInDialog,
   confirmPrompt,
   escapeHtml,
   friendlyError,
+  showDialog,
   toast,
   withBusyButton,
 } from "./shared/ui.js";
@@ -547,8 +547,7 @@ function openExtraIncomeDialog(month) {
       return false;
     }
   });
-  dlg.showModal();
-  blurAutoFocusedInDialog(dlg);
+  showDialog(dlg);
 }
 
 async function deleteExtraIncome(btn, month) {
@@ -603,8 +602,7 @@ function openSalaryDialog(month) {
       return false;
     }
   });
-  dlg.showModal();
-  blurAutoFocusedInDialog(dlg);
+  showDialog(dlg);
 }
 
 // ── Item dialog (add / edit) ─────────────────────────────────────────────
@@ -720,8 +718,7 @@ async function openItemDialog({ mode, item, monthCategoryId, categoryId }) {
       }
     }
   });
-  dlg.showModal();
-  blurAutoFocusedInDialog(dlg);
+  showDialog(dlg);
   // Suppress the parameter monthCategoryId — auto-creates the category on the
   // backend, so the frontend doesn't need it for the create path.
   void monthCategoryId;

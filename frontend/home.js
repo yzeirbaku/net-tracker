@@ -171,10 +171,11 @@ function summarizeMonth(month) {
     if ((it.ticked_at !== null && it.ticked_at !== undefined) || r <= 0) ticked += 1;
   }
   const salary = Number(month.salary_dkk);
+  const extraIncome = Number(month.extra_income_dkk || 0);
   return {
     planned, spent, ticked,
     total: items.length,
-    freeMoney: salary - planned,
+    freeMoney: salary + extraIncome - planned,
     pct: planned > 0 ? Math.max(0, Math.min(100, (spent / planned) * 100)) : 0,
   };
 }
@@ -187,7 +188,7 @@ function renderBudgetTile(month) {
       <div class="home-label">${monthLabel(month.year, month.month)} · free money</div>
       <div class="home-free ${freeCls}">${fmtDot(s.freeMoney)} dkk</div>
       <div class="home-progress"><div style="width:${s.pct.toFixed(1)}%"></div></div>
-      <div class="home-sub">${fmtDot(s.spent)} spent of ${fmtDot(s.planned)} planned · ${fmtDot(s.planned - s.spent)} to spend · ${s.ticked} items completed out of ${s.total} planned</div>
+      <div class="home-sub">${fmtDot(s.spent)}/${fmtDot(s.planned)} dkk spent. ${fmtDot(s.planned - s.spent)} to spend. ${s.ticked}/${s.total} expenses completed.</div>
     </div>
   `;
 }

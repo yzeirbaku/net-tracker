@@ -17,10 +17,10 @@
 
 import { api } from "./shared/api.js";
 import {
-  blurAutoFocusedInDialog,
   confirmPrompt,
   escapeHtml,
   friendlyError,
+  showDialog,
   toast,
   withBusyButton,
 } from "./shared/ui.js";
@@ -590,8 +590,7 @@ async function openSnapshotDialog() {
       return false;
     }
   });
-  dlg.showModal();
-  blurAutoFocusedInDialog(dlg);
+  showDialog(dlg);
 }
 
 // ── Version history sub-view ─────────────────────────────────────────────

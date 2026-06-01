@@ -2,10 +2,10 @@ import { api } from "./shared/api.js";
 import { createColorPicker, PALETTE } from "./shared/color-picker.js";
 import { createDropdown } from "./shared/dropdown.js";
 import {
-  blurAutoFocusedInDialog,
   confirmPrompt,
   escapeHtml,
   friendlyError,
+  showDialog,
   toast,
   withBusyButton,
 } from "./shared/ui.js";
@@ -622,6 +622,5 @@ async function openEditCategoryDialog(categoryId) {
     }
   };
 
-  dlg.showModal();
-  blurAutoFocusedInDialog(dlg);
+  showDialog(dlg);
 }

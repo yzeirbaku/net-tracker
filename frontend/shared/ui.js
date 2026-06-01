@@ -22,12 +22,39 @@ export function toast(message, kind = "info") {
  * does it; confirmPrompt() does it; bespoke callers (custom dialog flows
  * with their own open code) MUST do it too.
  */
+// iOS Safari paints `:focus-visible` on any programmatic focus (including the
+// auto-focus that `<dialog>.showModal()` applies to the first interactive
+// child), and sync `.blur()` after showModal isn't fast enough to suppress
+// the first frame on that browser. The reliable cross-browser fix is to
+// inject an invisible `<button autofocus>` at the start of the dialog so
+// showModal lands focus there instead of on the visible input/checkbox.
+// We blur the absorber synchronously and on the next animation frame as
+// belt-and-suspenders.
+function ensureFocusAbsorber(dlg) {
+  let absorber = dlg.querySelector(":scope > [data-focus-absorber]");
+  if (absorber) return absorber;
+  absorber = document.createElement("button");
+  absorber.type = "button";
+  absorber.tabIndex = -1;
+  absorber.setAttribute("autofocus", "");
+  absorber.setAttribute("data-focus-absorber", "");
+  absorber.setAttribute("aria-hidden", "true");
+  absorber.style.cssText =
+    "position:absolute;width:0;height:0;padding:0;margin:0;border:0;" +
+    "background:transparent;opacity:0;pointer-events:none;outline:none;";
+  dlg.prepend(absorber);
+  return absorber;
+}
+
+export function showDialog(dlg) {
+  if (!dlg) return;
+  ensureFocusAbsorber(dlg);
+  dlg.showModal();
+  blurAutoFocusedInDialog(dlg);
+}
+
 export function blurAutoFocusedInDialog(dlg) {
   if (!dlg) return;
-  // Sync blur first: in the same task as showModal, browsers haven't painted
-  // yet, so removing focus here avoids the green-border flash on the
-  // auto-focused input/checkbox. rAF stays as a fallback for browsers that
-  // assign activeElement asynchronously (notably iOS Safari).
   const blurIfInside = () => {
     const active = document.activeElement;
     if (active instanceof HTMLElement && dlg.contains(active)) active.blur();
@@ -40,8 +67,7 @@ export function openDialog(id) {
   const dlg = document.getElementById(id);
   if (!dlg) return null;
   if (!dlg.open) {
-    dlg.showModal();
-    blurAutoFocusedInDialog(dlg);
+    showDialog(dlg);
   }
   return dlg;
 }
@@ -200,7 +226,6 @@ export function confirmPrompt({ title = "Confirm", message = "", okLabel = "Conf
       resolve(dlg.returnValue === "save");
     };
     dlg.addEventListener("close", onClose);
-    dlg.showModal();
-    blurAutoFocusedInDialog(dlg);
+    showDialog(dlg);
   });
 }

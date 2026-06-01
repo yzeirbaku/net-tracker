@@ -76,7 +76,7 @@ function bindDrawer() {
   });
 }
 
-// ----- swipe gestures (lifted from gold-bar-tracker) -----
+// ----- swipe gestures (lifted from gold-price-tracker) -----
 function bindSwipe() {
   const EDGE_START_MIN = 0;
   const EDGE_START_MAX = 50;
@@ -167,7 +167,7 @@ function bindLogin() {
   // We deliberately do NOT call refreshSignedInState() here — that would fire
   // an extra GET /auth/me, and api.js aggressively clears the token on a 401.
   // The /verify response already gives us email + token, so we update the UI
-  // directly from it (same pattern as gold-bar-tracker).
+  // directly from it (same pattern as gold-price-tracker).
   $("#login-paste-submit").addEventListener("click", async (e) => {
     e.preventDefault();
     const raw = $("#login-paste").value.trim();

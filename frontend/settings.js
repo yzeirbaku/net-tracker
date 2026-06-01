@@ -290,7 +290,7 @@ function syncAssetVisibility() {
 
 /**
  * Hide the color picker row until the user starts typing a name —
- * matches the gold-bar pattern: form clues appear progressively.
+ * matches the gold-price pattern: form clues appear progressively.
  */
 function syncColorPickerVisibility() {
   const wrap = document.getElementById("cat-color-picker-wrap");

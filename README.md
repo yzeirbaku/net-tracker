@@ -48,6 +48,6 @@ pytest tests/ -v
 
 - **Backend:** FastAPI in Docker on an Oracle Cloud Always-Free VM (Frankfurt), behind Caddy with auto-renewing Let's Encrypt TLS. Public URL: `https://yzeir-net.duckdns.org`. Python pinned via `backend/.python-version` (3.12.7). `SCHEMA_SQL` runs idempotently on boot, so schema migrations apply automatically — no manual step.
 - **Frontend:** Cloudflare Pages at `https://net-tracker.pages.dev`. `BACKEND_URL` env var injected at build time. CSP `connect-src` in `frontend/_headers` must include the backend host.
-- **DB:** Neon Postgres (separate DB from gold-bar-tracker).
+- **DB:** Neon Postgres (separate DB from gold-price-tracker).
 - **Email:** Resend (magic-link only at MVP).
 - **Deploying:** use the `deploy` skill — say "deploy" / "ship it" in a Claude Code conversation in this repo. The skill SSHes into the VM, pulls `origin/main`, rebuilds the Docker image, restarts containers, and verifies the public health endpoint. See `.claude/skills/deploy/SKILL.md`. One-time per machine: create `.claude/skills/deploy/deploy.env.local` (gitignored) with the VM connection details — format in the SKILL.md "Setup" section.

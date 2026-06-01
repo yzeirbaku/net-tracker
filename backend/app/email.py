@@ -2,7 +2,7 @@
 of sending. Magic-link only at MVP — alert emails arrive later if/when
 notifications are introduced.
 
-Email shape mirrors gold-bar-tracker (sibling repo): themed HTML body with
+Email shape mirrors gold-price-tracker (sibling repo): themed HTML body with
 a green sign-in button, plus a parallel text/plain body so plain-text mail
 clients render cleanly. Sender display name is 'Net Tracker' to match the
 in-app brand."""

@@ -1,6 +1,6 @@
 # net-tracker — Claude guide
 
-Personal-finance PWA. Single-user, magic-link auth. Two live subsystems (Budget / Net Worth) + a Home dashboard, all sharing a single category taxonomy. Stack modeled on `gold-bar-tracker` (sibling repo) — FastAPI behind Caddy on an Oracle Cloud Always-Free VM, vanilla-JS PWA on Cloudflare Pages, Neon Postgres, Resend for magic-link email.
+Personal-finance PWA. Single-user, magic-link auth. Two live subsystems (Budget / Net Worth) + a Home dashboard, all sharing a single category taxonomy. Stack modeled on `gold-price-tracker` (sibling repo) — FastAPI behind Caddy on an Oracle Cloud Always-Free VM, vanilla-JS PWA on Cloudflare Pages, Neon Postgres, Resend for magic-link email.
 
 Shipped: auth, accounts/categories CRUD, Net Worth, Budget, Home dashboard. Spending/CSV (the planned fifth view) was scrapped; the `spending` + `put_aside` account kinds remain in the schema but aren't user-facing today.
 
@@ -10,7 +10,7 @@ All commits in this repo must be authored as `yzeirbaku@hotmail.com` (name: `Yze
 
 ## Four views
 
-Side-drawer nav, same shell pattern as gold-bar-tracker:
+Side-drawer nav, same shell pattern as gold-price-tracker:
 
 - **Home** — daily landing screen. Read-only tiles (net worth hero, composition strip, current-month budget tile, next-up unticked items) composed from `/networth` and `/budget/months/{ym}` in parallel. Taps deep-link to the source view. No Home-specific backend code.
 - **Budget** — persistent template (draft + labelled snapshots) stamped into per-month plans with checkable items. Past months can't be stamped; archive locks a month read-only. Month + template both support CSV download; template editor also supports CSV upload (rejects unknown category names; Save commits).
@@ -58,7 +58,7 @@ Magic-link → opaque session bearer tokens in `localStorage` (`net-tracker.sess
 ## Theme
 
 - Accent: saturated emerald (`#16a34a` light / `#22c55e` dark) with `#34d399` for gradients and active states.
-- Dark base: cooler near-black (`#0d1117` / `#161c24` surfaces) — distinct from gold-bar's warm grey-black.
+- Dark base: cooler near-black (`#0d1117` / `#161c24` surfaces) — distinct from gold-price's warm grey-black.
 - Affirmative buttons paint a subtle green gradient + inset highlight + small glow. `dialog menu button[value="save"]` and `.btn-primary` are affirmative; everything else is neutral.
 - Menu icons are inline SVG (Lucide-style strokes), not Unicode glyphs — Unicode chars drift across systems.
 - Header title and drawer brand both say "Net Tracker" (green gradient).
@@ -118,7 +118,7 @@ python scripts/dev_down.py   # kill backend + frontend; leaves Postgres running 
 
 `dev_up.py` opens the browser at `/dev-login.html?token=<session>` so you arrive already signed in as `dev@local.com`. The `dev-spinup` skill (`.claude/skills/dev-spinup/SKILL.md`) covers natural-language triggers: "start dev", "spin up", "tear down".
 
-Frontend port is `5510`, not 5500 — sibling `gold-bar-tracker` occupies 5500. Don't change `FRONTEND_PORT` in `scripts/dev_up.py`.
+Frontend port is `5510`, not 5500 — sibling `gold-price-tracker` occupies 5500. Don't change `FRONTEND_PORT` in `scripts/dev_up.py`.
 
 ## Verification
 
@@ -135,7 +135,7 @@ CI (`.github/workflows/tests.yml`) runs all three on push/PR to `main` against a
 
 - **Backend:** FastAPI in Docker on an **Oracle Cloud Always-Free VM** (Ubuntu 24.04, AMD E2.1.Micro, Frankfurt), fronted by **Caddy** with auto-renewing Let's Encrypt TLS. Public URL: `https://yzeir-net.duckdns.org` (DuckDNS free dynamic-DNS pointing at the VM's static public IP).
 - **Frontend:** Cloudflare Pages at `https://net-tracker.pages.dev`. `BACKEND_URL` env var is read at build time and written into `frontend/config.js`. The CSP `connect-src` allowlist in `frontend/_headers` MUST include the backend host — update both env var and CSP if the host ever changes.
-- **DB:** Neon Postgres (separate DB from gold-bar-tracker).
+- **DB:** Neon Postgres (separate DB from gold-price-tracker).
 - **Email:** Resend.
 - **Schema migrations:** `db.py::SCHEMA_SQL` runs idempotently on every backend boot, so deploys apply schema changes automatically — no manual step.
 - **Deploy = `git pull` on the VM + `docker compose up -d --build`.** Use the **`deploy` skill** (`.claude/skills/deploy/SKILL.md`) — natural-language triggers: "deploy", "ship it", "deploy net-tracker". The skill reads VM connection details from the gitignored `.claude/skills/deploy/deploy.env.local` (template inside the SKILL.md "Setup" section). Pre-flight: code must be pushed to `origin/main` first.

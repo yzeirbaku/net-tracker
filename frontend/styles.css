@@ -81,10 +81,10 @@ body {
 /* Theme toggle is intentionally instant — no cross-fade. */
 
 /* ---------- header ----------
-   Sizes mirror gold-bar-tracker: header padding 1rem desktop / 0.7rem 1rem
+   Sizes mirror gold-price-tracker: header padding 1rem desktop / 0.7rem 1rem
    mobile, h1 1.3rem / 1.05rem, burger 46x46 desktop / 36x36 mobile with a
    bigger glyph on mobile to compensate for the smaller frame. */
-/* Center-align the burger and title. Gold-bar uses flex-end because
+/* Center-align the burger and title. Gold-price uses flex-end because
    its .header-title also holds a tab-strip — bottom-aligning both
    children makes sense there. We have only an h1, so flex-end +
    padding-bottom over-shoots and pushes the title higher than the
@@ -135,7 +135,7 @@ header h1 {
 /* SVG-based burger — sized explicitly so the icon renders pixel-identical
    across iOS Safari and Chrome (the previous ☰ unicode glyph drifted by
    a few px between platforms because its baseline-within-line-box varies).
-   Pattern mirrors gold-bar-tracker. */
+   Pattern mirrors gold-price-tracker. */
 #menu-btn svg { width: 22px; height: 22px; display: block; }
 
 @media (max-width: 480px) {
@@ -287,20 +287,20 @@ main { max-width: 960px; margin: 0 auto; padding-bottom: 2rem; }
 .muted-tiny { color: var(--muted); font-size: 0.78rem; }
 
 /* ---------- buttons ----------
-   Sizes copied verbatim from gold-bar-tracker:
+   Sizes copied verbatim from gold-price-tracker:
 
    .btn-primary (Add Category / Add Account / standalone Add buttons),
-   matches gold-bar's .site-btn-primary:
+   matches gold-price's .site-btn-primary:
      desktop: padding 0.45rem 0.85rem, font inherits (~15px)
      mobile (<600px): padding 0.375rem 0.75rem, font-size 0.82rem
 
    dialog menu button (Cancel + Save inside <dialog>),
-   matches gold-bar's `dialog menu button`:
+   matches gold-price's `dialog menu button`:
      desktop: padding 0.55rem 0.95rem, font inherits
      mobile (<480px): padding 0.45rem 0.82rem, font-size 0.87rem
 
    Dialog buttons are intentionally larger than Add buttons —
-   matches gold-bar's hierarchy. */
+   matches gold-price's hierarchy. */
 .btn,
 .btn-primary,
 .btn-danger,
@@ -707,7 +707,7 @@ dialog .color-picker-popup {
 
 /* Wraps the "Pick a color" prompt with the shared picker chip so they
  * appear as one logical unit inside the add-row. Hidden until the user
- * types a name (matches the gold-bar progressive-disclosure pattern). */
+ * types a name (matches the gold-price progressive-disclosure pattern). */
 .cat-color-prompt-row {
   display: inline-flex;
   align-items: center;

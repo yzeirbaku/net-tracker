@@ -1177,14 +1177,14 @@ dialog menu button[value="save"].dialog-danger-confirm {
   -webkit-tap-highlight-color: transparent;
 }
 
-.dp-trigger:hover { border-color: var(--accent); }
 .dp-trigger:focus { outline: none; }
-/* iOS Safari treats tap as :focus-visible, which makes the accent ring stick
-   on the month-nav month picker after a chevron tap. Gating the glow on
-   `hover: hover` keeps the indicator for desktop keyboard nav but suppresses
-   it on touch devices, matching the rest of this app's "hover only on
-   pointer devices" rule. */
+/* iOS Safari latches `:hover` and `:focus-visible` on tap, so the month-nav
+   month picker keeps a stuck accent ring after a chevron tap (or after
+   navigating to an unstamped month). Gating both styles on `hover: hover`
+   keeps the desktop indicators while killing the iOS sticky border —
+   same convention as the icon-button family. */
 @media (hover: hover) {
+  .dp-trigger:hover { border-color: var(--accent); }
   .dp-trigger:focus-visible { outline: none; border-color: var(--accent); box-shadow: 0 0 0 2px var(--accent-glow, rgba(34,197,94,0.25)); }
 }
 

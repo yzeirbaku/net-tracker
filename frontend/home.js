@@ -188,7 +188,7 @@ function renderBudgetTile(month) {
       <div class="home-label">${monthLabel(month.year, month.month)} · free money</div>
       <div class="home-free ${freeCls}">${fmtDot(s.freeMoney)} dkk</div>
       <div class="home-progress"><div style="width:${s.pct.toFixed(1)}%"></div></div>
-      <div class="home-sub">${fmtDot(s.spent)}/${fmtDot(s.planned)} dkk spent. ${fmtDot(s.planned - s.spent)} to spend. ${s.ticked}/${s.total} expenses completed.</div>
+      <div class="home-sub">${fmtDot(s.spent)}/${fmtDot(s.planned)} dkk spent · ${fmtDot(s.planned - s.spent)} to spend · ${s.ticked}/${s.total} expenses completed</div>
     </div>
   `;
 }

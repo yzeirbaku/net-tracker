@@ -178,7 +178,10 @@ function renderMonthBodyHtml(rawMonth) {
   const planned = monthPlannedTotal(month);
   const spent = monthSpentTotal(month);
   const salary = Number(month.salary_dkk);
-  const free = salary - planned;
+  const extraIncome = Number(month.extra_income_dkk || 0);
+  const extraIncomeName = month.extra_income_name || null;
+  const totalIncome = salary + extraIncome;
+  const free = totalIncome - planned;
   const openCount = monthOpenCount(month);
   const hasCategories = month.categories.length > 0;
 
@@ -197,6 +200,19 @@ function renderMonthBodyHtml(rawMonth) {
       ${archived ? "" : '<button type="button" data-budget-action="edit-salary" class="budget-icon-btn" title="Edit salary" aria-label="Edit salary"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 1 1 3 3L7 19l-4 1 1-4 12.5-12.5z"/></svg></button>'}
     </div>
     ${
+      extraIncomeName
+        ? `<div class="budget-salary ${archived ? "is-disabled" : ""}">
+            <div>
+              <div class="budget-salary-label">${escapeHtml(extraIncomeName)}</div>
+              <div class="budget-salary-amount">${escapeHtml(fmtDKK(extraIncome))}</div>
+            </div>
+            ${archived ? "" : '<span style="display:flex;gap:0.4rem"><button type="button" data-budget-action="edit-income" class="budget-icon-btn" title="Edit income" aria-label="Edit income"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 1 1 3 3L7 19l-4 1 1-4 12.5-12.5z"/></svg></button><button type="button" data-budget-action="delete-income" class="budget-icon-btn budget-icon-btn-danger" title="Remove income" aria-label="Remove income"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 6 6 18M6 6l12 12"/></svg></button></span>'}
+          </div>`
+        : archived
+          ? ""
+          : '<button type="button" class="budget-add-category budget-add-income" data-budget-action="add-income">+ Add income</button>'
+    }
+    ${
       hasCategories
         ? `<div class="budget-sort-row">
              <span class="budget-sort-label">Sort</span>
@@ -213,6 +229,7 @@ function renderMonthBodyHtml(rawMonth) {
       <div class="budget-footer-row"><span>Spent so far</span><span>${escapeHtml(fmtDKK(spent))}</span></div>
       <div class="budget-footer-row"><span>Still to spend</span><span>${escapeHtml(fmtDKK(planned - spent))}</span></div>
       <div class="budget-footer-row big"><span>Salary</span><span>${escapeHtml(fmtDKK(salary))}</span></div>
+      ${extraIncomeName ? `<div class="budget-footer-row big"><span>${escapeHtml(extraIncomeName)}</span><span>${escapeHtml(fmtDKK(extraIncome))}</span></div>` : ""}
       <div class="budget-footer-row ${free >= 0 ? "remain" : "negative"}"><span>Free money</span><span>${escapeHtml(fmtDKK(free))}</span></div>
       ${
         showArchiveBtn
@@ -343,6 +360,9 @@ function bindMonthHandlers(month, _monthExists, _allMonths) {
     if (action === "open-archive")  return goToSubView("archive");
     if (action === "stamp")         return doStampMonth(btn);
     if (action === "edit-salary")   return openSalaryDialog(month);
+    if (action === "add-income")    return openExtraIncomeDialog(month);
+    if (action === "edit-income")   return openExtraIncomeDialog(month);
+    if (action === "delete-income") return deleteExtraIncome(btn, month);
     if (action === "add-category")  return openCategoryPickerDialog({
       mode: "month",
       excludeIds: month.categories.map((c) => c.category_id),
@@ -482,6 +502,70 @@ async function doUnarchive(btn) {
     await renderBudget();
   } catch (err) {
     toast(friendlyError(err, "Couldn't unarchive"), "error");
+  }
+}
+
+// ── Extra income dialog ─────────────────────────────────────────────────
+
+function openExtraIncomeDialog(month) {
+  const dlg = ensureDialog("budget-extra-income-dialog", `
+    <h3 id="budget-extra-income-dialog-title" style="margin-top:0"></h3>
+    <p class="muted" style="margin-top:0">A one-off income line for this month — counted with salary in Free money.</p>
+    <label for="budget-extra-income-name">Name</label>
+    <input id="budget-extra-income-name" type="text" placeholder="e.g. Bonus" />
+    <label for="budget-extra-income-amount">Amount (DKK)</label>
+    <input id="budget-extra-income-amount" type="text" inputmode="decimal" />
+    <menu>
+      <button value="cancel" data-budget-dialog-close type="button">Cancel</button>
+      <button value="save" data-budget-dialog-save type="button">Save</button>
+    </menu>
+  `);
+  const hasIncome = Boolean(month.extra_income_name);
+  dlg.querySelector("#budget-extra-income-dialog-title").textContent = hasIncome ? "Edit income" : "Add income";
+  const nameInput = dlg.querySelector("#budget-extra-income-name");
+  const amountInput = dlg.querySelector("#budget-extra-income-amount");
+  nameInput.value = month.extra_income_name || "";
+  amountInput.value = hasIncome ? formatAmountForInput(month.extra_income_dkk) : "";
+  installAmountFormatter(amountInput);
+  bindSimpleDialog(dlg, async (saveBtn) => {
+    const name = nameInput.value.trim();
+    const amount = parseAmount(amountInput.value);
+    if (!name) { toast("Name required", "error"); return false; }
+    if (amount === null) { toast("Enter a valid amount", "error"); return false; }
+    try {
+      await withBusyButton(saveBtn, "Saving…", () =>
+        api.put(
+          `/budget/months/${state.currentMonth.year}/${state.currentMonth.month}/extra-income`,
+          { name, amount_dkk: amount },
+        ),
+      );
+      toast(hasIncome ? "Income updated" : "Income added");
+      await renderBudget();
+      return true;
+    } catch (err) {
+      toast(friendlyError(err, "Couldn't save income"), "error");
+      return false;
+    }
+  });
+  dlg.showModal();
+  blurAutoFocusedInDialog(dlg);
+}
+
+async function deleteExtraIncome(btn, month) {
+  const ok = await confirmPrompt({
+    title: "Remove income?",
+    message: `"${month.extra_income_name}" will be removed from this month's totals.`,
+    okLabel: "Remove",
+  });
+  if (!ok) return;
+  try {
+    await withBusyButton(btn, "Removing…", () =>
+      api.delete(`/budget/months/${state.currentMonth.year}/${state.currentMonth.month}/extra-income`),
+    );
+    toast("Income removed");
+    await renderBudget();
+  } catch (err) {
+    toast(friendlyError(err, "Couldn't remove income"), "error");
   }
 }
 

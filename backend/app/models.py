@@ -352,9 +352,23 @@ class BudgetMonthOut(BaseModel):
     year: int
     month: int
     salary_dkk: Decimal
+    extra_income_name: str | None
+    extra_income_dkk: Decimal
     archived_at: datetime | None
     created_at: datetime
     categories: list[BudgetMonthCategoryOut]
+
+
+class BudgetMonthExtraIncomeSet(BaseModel):
+    name: Annotated[str, Field(min_length=1, max_length=200)]
+    amount_dkk: Decimal
+
+    @field_validator("amount_dkk")
+    @classmethod
+    def _non_negative_amount(cls, v: Decimal) -> Decimal:
+        if v < 0:
+            raise ValueError("amount_dkk must be >= 0")
+        return v
 
 
 class BudgetMonthSummary(BaseModel):

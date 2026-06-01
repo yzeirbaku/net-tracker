@@ -222,11 +222,21 @@ CREATE TABLE IF NOT EXISTS budget_months (
     year INTEGER NOT NULL,
     month INTEGER NOT NULL,
     salary_dkk NUMERIC(12, 2) NOT NULL DEFAULT 0,
+    extra_income_name TEXT,
+    extra_income_dkk NUMERIC(12, 2) NOT NULL DEFAULT 0,
     archived_at TIMESTAMPTZ,
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     UNIQUE (user_id, year, month),
     CONSTRAINT budget_months_month_check CHECK (month BETWEEN 1 AND 12)
 );
+
+-- 2026-06-01 migration: optional one-off extra-income line per stamped month.
+-- Both columns default to "no income" (NULL name, 0 amount); a frontend PUT
+-- sets the pair, DELETE clears them. Idempotent.
+ALTER TABLE budget_months
+    ADD COLUMN IF NOT EXISTS extra_income_name TEXT;
+ALTER TABLE budget_months
+    ADD COLUMN IF NOT EXISTS extra_income_dkk NUMERIC(12, 2) NOT NULL DEFAULT 0;
 
 CREATE INDEX IF NOT EXISTS idx_budget_months_user_year_month
     ON budget_months(user_id, year DESC, month DESC);

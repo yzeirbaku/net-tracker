@@ -9,6 +9,11 @@ import {
   withBusyButton,
 } from "./shared/ui.js";
 import { paintViewError, paintViewLoading } from "./shared/view-loading.js";
+import {
+  formatAmountForInput,
+  installAmountFormatter,
+  parseAmount,
+} from "./budget-common.js";
 
 export const ASSET_CLASS_ORDER = ["Cash", "Stocks", "Crypto", "Precious Metals", "Pension", "Other"];
 
@@ -109,7 +114,8 @@ async function openBalanceDialog({ accountId, accountName, date = null, value = 
       : null;
   dialogState.datepicker.setMin(earliest);
   dialogState.datepicker.setValue(dialogState.initialDate);
-  valueInput.value = value != null ? String(value) : "";
+  valueInput.value = value != null ? formatAmountForInput(value) : "";
+  installAmountFormatter(valueInput);
   const exists = history.entries.some((e) => e.entry_date === dialogState.datepicker.getValue());
   hint.hidden = !exists;
   if (!dlg.open) {
@@ -151,16 +157,14 @@ function bindBalanceDialogOnce() {
   document.getElementById("balance-save").addEventListener("click", async (e) => {
     const valueInput = document.getElementById("balance-value");
     const date = dialogState.datepicker.getValue();
-    const raw = valueInput.value.trim().replace(",", ".");
+    const num = parseAmount(valueInput.value);
     if (!date) { toast("Date required", "error"); return; }
-    if (!raw) { toast("Value required", "error"); return; }
-    const num = Number(raw);
-    if (!Number.isFinite(num)) { toast("Value isn't a number", "error"); return; }
+    if (num === null) { toast("Enter a valid amount", "error"); return; }
     try {
       await withBusyButton(e.currentTarget, "Saving…", () =>
         api.post(`/accounts/${dialogState.accountId}/balance`, {
           entry_date: date,
-          value_dkk: raw,
+          value_dkk: num,
         }),
       );
       dlg.close();

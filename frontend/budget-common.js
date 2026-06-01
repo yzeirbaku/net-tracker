@@ -253,6 +253,18 @@ export function parseAmount(s) {
 export function buildMonthCsv(month) {
   const esc = (s) => `"${String(s ?? "").replace(/"/g, '""')}"`;
   const lines = ['Category,Item,Planned (dkk),Remaining (dkk),Ticked,Ticked at'];
+  // Extra income — optional one-off income line. Sits at the top so the
+  // section header below is still recognizable as the item table.
+  if (month.extra_income_name) {
+    lines.push([
+      esc("Income"),
+      esc(month.extra_income_name),
+      Number(month.extra_income_dkk),
+      "",
+      "",
+      "",
+    ].join(","));
+  }
   for (const cat of (month.categories || [])) {
     for (const item of (cat.items || [])) {
       const ticked = (item.ticked_at !== null && item.ticked_at !== undefined) || Number(item.remaining_dkk) <= 0;

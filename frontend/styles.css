@@ -1178,7 +1178,8 @@ dialog menu button[value="save"].dialog-danger-confirm {
 }
 
 .dp-trigger:hover { border-color: var(--accent); }
-.dp-trigger:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 2px var(--accent-glow, rgba(34,197,94,0.25)); }
+.dp-trigger:focus { outline: none; }
+.dp-trigger:focus-visible { outline: none; border-color: var(--accent); box-shadow: 0 0 0 2px var(--accent-glow, rgba(34,197,94,0.25)); }
 
 .dp-trigger-placeholder { color: var(--muted); }
 
@@ -1891,7 +1892,7 @@ input[type="checkbox"].tk-checkbox:checked::after {
  * match the rest of the row affordances. Save new version uses
  * .btn-primary which already has the green glow. */
 .budget-template-savebar .btn {
-  min-width: 90px;
+  min-width: 70px;
 }
 .budget-template-savebar .btn:hover {
   border-color: var(--accent);

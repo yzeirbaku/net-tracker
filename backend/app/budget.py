@@ -27,6 +27,7 @@ from app.auth_session import require_session
 from app.models import (
     BudgetMonthCategoryAdd,
     BudgetMonthCategoryOut,
+    BudgetMonthExtraIncomeSet,
     BudgetMonthItemCreate,
     BudgetMonthItemOut,
     BudgetMonthItemPatch,
@@ -106,6 +107,8 @@ def _month_out(
         year=row["year"],
         month=row["month"],
         salary_dkk=row["salary_dkk"],
+        extra_income_name=row["extra_income_name"],
+        extra_income_dkk=row["extra_income_dkk"],
         archived_at=row["archived_at"],
         created_at=row["created_at"],
         categories=categories,
@@ -407,7 +410,8 @@ async def _load_month(
     conn: asyncpg.Connection[Any], user_id: UUID, year: int, month: int
 ) -> asyncpg.Record | None:
     return await conn.fetchrow(
-        "SELECT id, year, month, salary_dkk, archived_at, created_at "
+        "SELECT id, year, month, salary_dkk, extra_income_name, extra_income_dkk, "
+        "archived_at, created_at "
         "FROM budget_months WHERE user_id = $1 AND year = $2 AND month = $3",
         user_id,
         year,
@@ -649,6 +653,63 @@ async def patch_month_salary(
         await conn.execute(
             "UPDATE budget_months SET salary_dkk = $1 WHERE id = $2",
             payload.salary_dkk,
+            month_row["id"],
+        )
+        refreshed = await _require_month(
+            conn, session["user_id"], year, month
+        )
+        categories = await _load_month_tree(conn, refreshed["id"])
+    return _month_out(refreshed, categories)
+
+
+@router.put(
+    "/months/{year}/{month}/extra-income", response_model=BudgetMonthOut
+)
+async def put_month_extra_income(
+    year: int,
+    month: int,
+    payload: BudgetMonthExtraIncomeSet,
+    session: dict[str, UUID] = Depends(require_session),
+) -> BudgetMonthOut:
+    """Set or overwrite the optional one-off income line for the month."""
+    _validate_year_month(year, month)
+    pool = db.pool()
+    async with pool.acquire() as conn, conn.transaction():
+        month_row = await _require_month(conn, session["user_id"], year, month)
+        _require_month_active(month_row)
+        await conn.execute(
+            "UPDATE budget_months "
+            "SET extra_income_name = $1, extra_income_dkk = $2 "
+            "WHERE id = $3",
+            payload.name.strip(),
+            payload.amount_dkk,
+            month_row["id"],
+        )
+        refreshed = await _require_month(
+            conn, session["user_id"], year, month
+        )
+        categories = await _load_month_tree(conn, refreshed["id"])
+    return _month_out(refreshed, categories)
+
+
+@router.delete(
+    "/months/{year}/{month}/extra-income", response_model=BudgetMonthOut
+)
+async def delete_month_extra_income(
+    year: int,
+    month: int,
+    session: dict[str, UUID] = Depends(require_session),
+) -> BudgetMonthOut:
+    """Clear the extra-income line — leaves the rest of the month untouched."""
+    _validate_year_month(year, month)
+    pool = db.pool()
+    async with pool.acquire() as conn, conn.transaction():
+        month_row = await _require_month(conn, session["user_id"], year, month)
+        _require_month_active(month_row)
+        await conn.execute(
+            "UPDATE budget_months "
+            "SET extra_income_name = NULL, extra_income_dkk = 0 "
+            "WHERE id = $1",
             month_row["id"],
         )
         refreshed = await _require_month(

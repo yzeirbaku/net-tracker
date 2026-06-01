@@ -274,6 +274,123 @@ async def test_patch_month_salary_rejects_negative(
     assert r.status_code == 422
 
 
+# ── Extra income on the month ───────────────────────────────────────────
+
+
+async def test_put_extra_income_sets_and_get_reflects(
+    client: AsyncClient, authed_user: dict[str, str]
+) -> None:
+    token = authed_user["token"]
+    await seed_template_with_one_category(client, token)
+    year, month, stamped = await stamp_current_month(client, token)
+    # Fresh stamp: defaults are name=NULL, amount=0.
+    assert stamped["extra_income_name"] is None
+    assert stamped["extra_income_dkk"] == "0.00"
+
+    r = await client.put(
+        f"/budget/months/{year}/{month}/extra-income",
+        json={"name": "Bonus", "amount_dkk": 2500},
+        headers=auth_headers(token),
+    )
+    assert r.status_code == 200, r.text
+    body = r.json()
+    assert body["extra_income_name"] == "Bonus"
+    assert body["extra_income_dkk"] == "2500.00"
+
+    # GET reflects the set fields.
+    r = await client.get(
+        f"/budget/months/{year}/{month}", headers=auth_headers(token)
+    )
+    assert r.json()["extra_income_name"] == "Bonus"
+    assert r.json()["extra_income_dkk"] == "2500.00"
+
+
+async def test_put_extra_income_overwrites(
+    client: AsyncClient, authed_user: dict[str, str]
+) -> None:
+    token = authed_user["token"]
+    await seed_template_with_one_category(client, token)
+    year, month, _ = await stamp_current_month(client, token)
+    H = auth_headers(token)
+    url = f"/budget/months/{year}/{month}/extra-income"
+
+    await client.put(url, json={"name": "Bonus", "amount_dkk": 1000}, headers=H)
+    r = await client.put(
+        url, json={"name": "Tax refund", "amount_dkk": 700}, headers=H
+    )
+    assert r.status_code == 200
+    assert r.json()["extra_income_name"] == "Tax refund"
+    assert r.json()["extra_income_dkk"] == "700.00"
+
+
+async def test_delete_extra_income_clears(
+    client: AsyncClient, authed_user: dict[str, str]
+) -> None:
+    token = authed_user["token"]
+    await seed_template_with_one_category(client, token)
+    year, month, _ = await stamp_current_month(client, token)
+    H = auth_headers(token)
+    url = f"/budget/months/{year}/{month}/extra-income"
+
+    await client.put(url, json={"name": "Bonus", "amount_dkk": 1500}, headers=H)
+    r = await client.delete(url, headers=H)
+    assert r.status_code == 200
+    assert r.json()["extra_income_name"] is None
+    assert r.json()["extra_income_dkk"] == "0.00"
+
+    # DELETE is idempotent: a second call on an already-cleared month succeeds.
+    r2 = await client.delete(url, headers=H)
+    assert r2.status_code == 200
+    assert r2.json()["extra_income_name"] is None
+
+
+async def test_extra_income_validators(
+    client: AsyncClient, authed_user: dict[str, str]
+) -> None:
+    token = authed_user["token"]
+    await seed_template_with_one_category(client, token)
+    year, month, _ = await stamp_current_month(client, token)
+    H = auth_headers(token)
+    url = f"/budget/months/{year}/{month}/extra-income"
+
+    # Empty name → 422.
+    r = await client.put(url, json={"name": "", "amount_dkk": 100}, headers=H)
+    assert r.status_code == 422
+
+    # Negative amount → 422.
+    r = await client.put(
+        url, json={"name": "Bonus", "amount_dkk": -1}, headers=H
+    )
+    assert r.status_code == 422
+
+
+async def test_extra_income_blocked_on_archived_month(
+    client: AsyncClient, authed_user: dict[str, str]
+) -> None:
+    token = authed_user["token"]
+    seed = await seed_template_with_one_category(client, token)
+    year, month, stamped = await stamp_current_month(client, token)
+    H = auth_headers(token)
+    # Tick every item, then archive.
+    for it in stamped["categories"][0]["items"]:
+        await client.patch(
+            f"/budget/months/{year}/{month}/items/{it['id']}",
+            json={"ticked": True},
+            headers=H,
+        )
+    await client.post(f"/budget/months/{year}/{month}/archive", headers=H)
+    # Suppress unused-import warning on seed (kept for parity with sibling tests).
+    _ = seed
+
+    url = f"/budget/months/{year}/{month}/extra-income"
+    r = await client.put(
+        url, json={"name": "Bonus", "amount_dkk": 1000}, headers=H
+    )
+    assert r.status_code == 409 and r.json()["detail"] == "month_archived"
+    r = await client.delete(url, headers=H)
+    assert r.status_code == 409 and r.json()["detail"] == "month_archived"
+
+
 # ── Archive guard + idempotency ─────────────────────────────────────────
 
 

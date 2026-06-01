@@ -24,10 +24,16 @@ export function toast(message, kind = "info") {
  */
 export function blurAutoFocusedInDialog(dlg) {
   if (!dlg) return;
-  requestAnimationFrame(() => {
+  // Sync blur first: in the same task as showModal, browsers haven't painted
+  // yet, so removing focus here avoids the green-border flash on the
+  // auto-focused input/checkbox. rAF stays as a fallback for browsers that
+  // assign activeElement asynchronously (notably iOS Safari).
+  const blurIfInside = () => {
     const active = document.activeElement;
     if (active instanceof HTMLElement && dlg.contains(active)) active.blur();
-  });
+  };
+  blurIfInside();
+  requestAnimationFrame(blurIfInside);
 }
 
 export function openDialog(id) {

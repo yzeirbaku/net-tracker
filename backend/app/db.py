@@ -265,6 +265,22 @@ CREATE TABLE IF NOT EXISTS budget_month_items (
 
 CREATE INDEX IF NOT EXISTS idx_budget_month_items_month_category
     ON budget_month_items(month_category_id);
+
+-- 2026-06-02 Put-aside: a flat list of named amounts the user has earmarked
+-- for upcoming spend (e.g. "Car insurance — 4.200"). One global list per user;
+-- no categories, no dates, no history. The list IS the current state.
+CREATE TABLE IF NOT EXISTS put_aside_items (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    name TEXT NOT NULL,
+    amount_dkk NUMERIC(12, 2) NOT NULL,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    CONSTRAINT put_aside_items_amount_nonneg CHECK (amount_dkk >= 0)
+);
+
+CREATE INDEX IF NOT EXISTS idx_put_aside_items_user_amount
+    ON put_aside_items(user_id, amount_dkk DESC);
 """
 
 

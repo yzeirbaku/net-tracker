@@ -9,9 +9,12 @@ import { closeDialog, friendlyError, openDialog, toast, withBusyButton } from ".
 import { renderBudget, resetBudgetSubView } from "./budget.js";
 import { renderHome } from "./home.js";
 import { renderNetWorth } from "./networth.js";
+import { renderPutAside } from "./put-aside.js";
 import { renderSettings } from "./settings.js";
 
-const VIEWS = ["home", "budget", "networth", "settings"];
+// "put-aside" is reachable via Home tile only (no drawer entry) but still
+// participates in showView so the hamburger can navigate to it and away.
+const VIEWS = ["home", "budget", "networth", "put-aside", "settings"];
 
 function $(sel) { return document.querySelector(sel); }
 
@@ -27,6 +30,7 @@ function showView(name) {
   if (name === "settings") renderSettings();
   if (name === "networth") renderNetWorth();
   if (name === "budget") { resetBudgetSubView(); renderBudget(); }
+  if (name === "put-aside") renderPutAside();
   if (name === "home") renderHome();
 }
 

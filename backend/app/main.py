@@ -11,6 +11,7 @@ from app import (
     budget,
     categories,
     networth,
+    put_aside,
 )
 from app.db import close_pool, init_pool
 
@@ -38,6 +39,7 @@ app.include_router(accounts.router)
 app.include_router(balance_entries.router)
 app.include_router(networth.router)
 app.include_router(budget.router)
+app.include_router(put_aside.router)
 
 
 @app.get("/")

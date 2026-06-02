@@ -452,3 +452,59 @@ class BudgetMonthItemPatch(BaseModel):
 
 class BudgetMonthCategoryAdd(BaseModel):
     category_id: UUID
+
+
+# ── Put-aside (flat list of named amounts) ───────────────────────────────
+
+
+class PutAsideItemCreate(BaseModel):
+    name: Annotated[str, Field(min_length=1, max_length=200)]
+    amount_dkk: Decimal
+
+    @field_validator("name")
+    @classmethod
+    def _validate_name(cls, v: str) -> str:
+        return _strip_nonempty(v)
+
+    @field_validator("amount_dkk")
+    @classmethod
+    def _non_negative_amount(cls, v: Decimal) -> Decimal:
+        if v < 0:
+            raise ValueError("amount_dkk must be >= 0")
+        return v
+
+
+class PutAsideItemUpdate(BaseModel):
+    name: str | None = None
+    amount_dkk: Decimal | None = None
+
+    @field_validator("name")
+    @classmethod
+    def _validate_name(cls, v: str | None) -> str | None:
+        if v is None:
+            return None
+        return _strip_nonempty(v)
+
+    @field_validator("amount_dkk")
+    @classmethod
+    def _non_negative_amount(cls, v: Decimal | None) -> Decimal | None:
+        if v is None:
+            return None
+        if v < 0:
+            raise ValueError("amount_dkk must be >= 0")
+        return v
+
+
+class PutAsideItemOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: UUID
+    name: str
+    amount_dkk: Decimal
+    created_at: datetime
+    updated_at: datetime
+
+
+class PutAsideOut(BaseModel):
+    total_dkk: Decimal
+    items: list[PutAsideItemOut]

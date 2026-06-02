@@ -2160,3 +2160,94 @@ input[type="checkbox"].tk-checkbox:checked::after {
 }
 .home-comp-legend-item { display: inline-flex; align-items: center; gap: 6px; }
 .home-comp-pct { color: var(--muted); font-variant-numeric: tabular-nums; }
+
+/* ── Put aside ───────────────────────────────────────────────────────── */
+
+.put-aside-card { padding: 1rem 1rem 0.8rem; }
+
+.put-aside-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-bottom: 0.8rem;
+}
+
+.put-aside-label {
+  color: var(--muted);
+  font-size: 0.68rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  margin-bottom: 2px;
+}
+
+.put-aside-total {
+  font-size: 1.5rem;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  background: linear-gradient(135deg, var(--accent-strong), var(--accent-2));
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+.put-aside-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.put-aside-row {
+  display: grid;
+  grid-template-columns: 1fr auto auto;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 0.55rem 0;
+  border-top: 1px solid var(--border);
+  font-size: 0.95rem;
+}
+
+.put-aside-row:first-child { border-top: none; }
+
+.put-aside-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.put-aside-amount {
+  font-variant-numeric: tabular-nums;
+  color: var(--fg);
+  font-weight: 600;
+}
+
+.put-aside-actions {
+  display: inline-flex;
+  gap: 0.35rem;
+}
+
+.put-aside-empty {
+  padding: 0.6rem 0 0.2rem;
+  border-top: 1px solid var(--border);
+}
+
+/* Home put-aside tile rows: same shape as .home-next-row but the dot is
+ * implicit (no per-row color), so the left side is just the item name. */
+.home-put-aside-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 6px 0;
+  border-top: 1px solid var(--border);
+  font-size: 0.85rem;
+}
+.home-tile .home-put-aside-row:first-of-type {
+  border-top: none;
+  padding-top: 0;
+}
+.home-put-aside-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  padding-right: 0.5rem;
+}

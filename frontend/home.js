@@ -9,6 +9,7 @@ import { api } from "./shared/api.js";
 import { escapeHtml, friendlyError } from "./shared/ui.js";
 import { paintViewLoading, paintViewError } from "./shared/view-loading.js";
 import { ASSET_CLASS_COLORS, ASSET_CLASS_ORDER, getNetWorthViewMode } from "./networth.js";
+import { fetchPutAsideSummary } from "./put-aside.js";
 import { getEffectiveYearMonth } from "./shared/effective-month.js";
 
 const DKK_TO_EUR_RATE = 7.46038;
@@ -212,6 +213,27 @@ function topUntickedItems(month, limit = 3) {
   return out.slice(0, limit);
 }
 
+function renderPutAsideTile(summary) {
+  const items = summary?.items || [];
+  const total = Number(summary?.total_dkk || 0);
+  const top = items.slice(0, 3);
+  const rows = top.length
+    ? top.map((it) => `
+        <div class="home-put-aside-row">
+          <span class="home-put-aside-name">${escapeHtml(it.name)}</span>
+          <span class="home-next-amount">${fmtDot(it.amount_dkk)}</span>
+        </div>
+      `).join("")
+    : `<div class="home-sub">Nothing set aside yet</div>`;
+  return `
+    <div class="home-tile" role="button" tabindex="0" data-home-nav="put-aside" aria-label="Open Put aside">
+      <div class="home-label">Put aside</div>
+      <div class="home-free">${fmtDot(total)} dkk</div>
+      ${rows}
+    </div>
+  `;
+}
+
 function renderNextUpTile(month) {
   const items = topUntickedItems(month);
   if (items.length === 0) return "";
@@ -279,9 +301,10 @@ export async function renderHome() {
   const { year, month } = currentYearMonth();
   const since = isoMinusDays(30);
 
-  const [nwRes, budgetRes] = await Promise.allSettled([
+  const [nwRes, budgetRes, putAsideRes] = await Promise.allSettled([
     api.get(`/networth?range_from=${since}`),
     api.get(`/budget/months/${year}/${month}`),
+    fetchPutAsideSummary(),
   ]);
 
   if (nwRes.status === "rejected") {
@@ -296,6 +319,10 @@ export async function renderHome() {
   } else if (budgetRes.reason?.message !== "month_not_stamped") {
     console.warn("Home: budget fetch failed", budgetRes.reason);
   }
+  const putAside = putAsideRes.status === "fulfilled" ? putAsideRes.value : null;
+  if (putAsideRes.status === "rejected") {
+    console.warn("Home: put-aside fetch failed", putAsideRes.reason);
+  }
 
   const mode = getNetWorthViewMode();
   const tiles = [
@@ -303,8 +330,9 @@ export async function renderHome() {
   ];
   const composition = renderCompositionTile(nw, mode);
   if (composition) tiles.push(composition);
+  if (budget) tiles.push(renderBudgetTile(budget));
+  if (putAside) tiles.push(renderPutAsideTile(putAside));
   if (budget) {
-    tiles.push(renderBudgetTile(budget));
     const nextUp = renderNextUpTile(budget);
     if (nextUp) tiles.push(nextUp);
   }

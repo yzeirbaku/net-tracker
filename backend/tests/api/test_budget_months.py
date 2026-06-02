@@ -218,8 +218,77 @@ async def test_months_summary_math(
     assert row["planned_total_dkk"] == "8299.00"
     # spent = (8000-0) + (299-100) = 8199
     assert row["spent_total_dkk"] == "8199.00"
+    # Housing is neither savings nor investments → saved stays 0.
+    assert row["saved_total_dkk"] == "0.00"
     assert row["items_open"] == 1  # only internet, still has remaining > 0
     assert row["items_total"] == 2
+
+
+async def test_months_summary_saved_total_for_savings_categories(
+    client: AsyncClient, authed_user: dict[str, str]
+) -> None:
+    """`saved_total_dkk` sums ticked spend on items whose category name
+    matches savings/investments (case-insensitive, singular + plural).
+    Untouched / non-savings categories don't contribute."""
+    token = authed_user["token"]
+    investments = await create_category(
+        client, token, "INVESTMENTS", color="#22c55e"
+    )
+    saving = await create_category(client, token, "Saving", color="#3b82f6")
+    housing = await create_category(client, token, "Housing", color="#f59e0b")
+    await patch_template(
+        client,
+        token,
+        salary=40000,
+        categories=[
+            {
+                "category_id": investments["id"],
+                "sort_order": 0,
+                "items": [{"name": "ETF", "planned_dkk": 5000, "sort_order": 0}],
+            },
+            {
+                "category_id": saving["id"],
+                "sort_order": 1,
+                "items": [{"name": "Buffer", "planned_dkk": 2000, "sort_order": 0}],
+            },
+            {
+                "category_id": housing["id"],
+                "sort_order": 2,
+                "items": [{"name": "Rent", "planned_dkk": 8000, "sort_order": 0}],
+            },
+        ],
+    )
+    year, month, stamped = await stamp_current_month(client, token)
+    items_by_cat = {c["category_name"]: c["items"] for c in stamped["categories"]}
+    etf_id = items_by_cat["INVESTMENTS"][0]["id"]
+    buffer_id = items_by_cat["Saving"][0]["id"]
+    rent_id = items_by_cat["Housing"][0]["id"]
+
+    # Tick the ETF item fully (5000 contributes).
+    r = await client.patch(
+        f"/budget/months/{year}/{month}/items/{etf_id}",
+        json={"ticked": True},
+        headers=auth_headers(token),
+    )
+    assert r.status_code == 200
+    # Partial-pay Buffer without ticking (still has remaining > 0,
+    # ticked_at NULL) — must NOT contribute to saved.
+    r = await client.patch(
+        f"/budget/months/{year}/{month}/items/{buffer_id}",
+        json={"remaining_dkk": 500},
+        headers=auth_headers(token),
+    )
+    assert r.status_code == 200
+    # Tick Rent — different category, must NOT contribute.
+    r = await client.patch(
+        f"/budget/months/{year}/{month}/items/{rent_id}",
+        json={"ticked": True},
+        headers=auth_headers(token),
+    )
+    assert r.status_code == 200
+
+    rows = (await client.get("/budget/months", headers=auth_headers(token))).json()
+    assert rows[0]["saved_total_dkk"] == "5000.00"
 
 
 async def test_months_list_orders_newest_first(

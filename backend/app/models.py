@@ -379,6 +379,7 @@ class BudgetMonthSummary(BaseModel):
     salary_dkk: Decimal
     planned_total_dkk: Decimal
     spent_total_dkk: Decimal
+    saved_total_dkk: Decimal
     items_open: int
     items_total: int
 

@@ -492,16 +492,28 @@ async def list_months(
     picker, the archive view, and any future Home composition."""
     pool = db.pool()
     async with pool.acquire() as conn:
+        # `saved_total_dkk` = ticked spend in savings/investments categories.
+        # Whole-name match, case-insensitive, singular + plural accepted.
+        # Only ticked items count (matches the user-facing "ticked amounts"
+        # wording); for an archived month every item is ticked so this just
+        # becomes the planned total of those categories.
         rows = await conn.fetch(
             "SELECT m.year, m.month, m.created_at AS stamped_at, m.archived_at, "
             "  m.salary_dkk, "
             "  COALESCE(SUM(i.planned_dkk), 0) AS planned_total_dkk, "
             "  COALESCE(SUM(i.planned_dkk - i.remaining_dkk), 0) AS spent_total_dkk, "
+            "  COALESCE(SUM(CASE "
+            "    WHEN LOWER(cat.name) IN "
+            "         ('investment', 'investments', 'saving', 'savings') "
+            "     AND (i.ticked_at IS NOT NULL OR i.remaining_dkk <= 0) "
+            "    THEN i.planned_dkk - i.remaining_dkk ELSE 0 END), 0)::NUMERIC(12,2) "
+            "    AS saved_total_dkk, "
             "  COALESCE(SUM(CASE WHEN i.ticked_at IS NULL AND i.remaining_dkk > 0 "
             "                    THEN 1 ELSE 0 END), 0) AS items_open, "
             "  COALESCE(COUNT(i.id), 0) AS items_total "
             "FROM budget_months m "
             "LEFT JOIN budget_month_categories c ON c.month_id = m.id "
+            "LEFT JOIN categories cat ON cat.id = c.category_id "
             "LEFT JOIN budget_month_items i ON i.month_category_id = c.id "
             "WHERE m.user_id = $1 "
             "GROUP BY m.id "
@@ -517,6 +529,7 @@ async def list_months(
             salary_dkk=r["salary_dkk"],
             planned_total_dkk=r["planned_total_dkk"],
             spent_total_dkk=r["spent_total_dkk"],
+            saved_total_dkk=r["saved_total_dkk"],
             items_open=int(r["items_open"]),
             items_total=int(r["items_total"]),
         )

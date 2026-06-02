@@ -782,7 +782,7 @@ async function renderArchiveView(root) {
 }
 
 function renderArchiveRow(m) {
-  const saved = Number(m.planned_total_dkk) - Number(m.spent_total_dkk);
+  const saved = Number(m.saved_total_dkk);
   return `
     <tr>
       <td>

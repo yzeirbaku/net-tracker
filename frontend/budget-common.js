@@ -249,12 +249,23 @@ export function parseAmount(s) {
  * Build a UTF-8-with-BOM CSV string from a stamped month payload.
  * Columns: Category, Item, Planned (dkk), Remaining (dkk), Ticked, Ticked at.
  * Quotes Category/Item per RFC 4180; embedded quotes doubled.
+ *
+ * Salary (and the optional extra-income line) are emitted as meta rows at
+ * the top with empty Item/Remaining/Ticked cells — same shape the template
+ * CSV uses for its `Salary,"",N` row, so income reads as income and not as
+ * a planned expense.
  */
 export function buildMonthCsv(month) {
   const esc = (s) => `"${String(s ?? "").replace(/"/g, '""')}"`;
   const lines = ['Category,Item,Planned (dkk),Remaining (dkk),Ticked,Ticked at'];
-  // Extra income — optional one-off income line. Sits at the top so the
-  // section header below is still recognizable as the item table.
+  lines.push([
+    esc("Salary"),
+    esc(""),
+    Number(month.salary_dkk || 0),
+    "",
+    "",
+    "",
+  ].join(","));
   if (month.extra_income_name) {
     lines.push([
       esc("Income"),

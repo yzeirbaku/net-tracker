@@ -907,3 +907,31 @@ function afterRender(root) {
   renderDonut();
   bindAccountRows(root);
 }
+
+/**
+ * UTF-8-with-BOM CSV of the user's wealth accounts and their latest balance.
+ * Mirrors what the Net Worth view shows in its accounts table, grouped in
+ * canonical asset-class order. The bundle exporter uses this for one of the
+ * files in the "Download current state" zip.
+ */
+export function buildNetWorthCsv(nw) {
+  const esc = (s) => `"${String(s ?? "").replace(/"/g, '""')}"`;
+  const lines = ['Account,Asset class,Latest balance (dkk),Latest entry date'];
+  const ordered = [...(nw?.accounts || [])].sort((a, b) => {
+    const ai = ASSET_CLASS_ORDER.indexOf(a.asset_class);
+    const bi = ASSET_CLASS_ORDER.indexOf(b.asset_class);
+    if (ai !== bi) return ai - bi;
+    return (a.name || "").localeCompare(b.name || "");
+  });
+  for (const a of ordered) {
+    lines.push([
+      esc(a.name),
+      esc(a.asset_class),
+      a.latest_value_dkk == null ? "" : Number(a.latest_value_dkk),
+      esc(a.latest_entry_date || ""),
+    ].join(","));
+  }
+  // Trailing TOTAL row mirrors the headline number on the Net Worth view.
+  lines.push([esc("TOTAL"), "", Number(nw?.total_dkk || 0), esc(nw?.as_of || "")].join(","));
+  return "\uFEFF" + lines.join("\r\n") + "\r\n";
+}

@@ -193,3 +193,18 @@ export async function renderPutAside() {
 export async function fetchPutAsideSummary() {
   return api.get("/put-aside");
 }
+
+/**
+ * Build a UTF-8-with-BOM CSV of the current put-aside list. Sort order
+ * matches the API (amount DESC, created_at ASC). A trailing TOTAL row keeps
+ * the bundled export readable as a snapshot.
+ */
+export function buildPutAsideCsv(summary) {
+  const esc = (s) => `"${String(s ?? "").replace(/"/g, '""')}"`;
+  const lines = ['Name,Amount (dkk),Created at'];
+  for (const it of (summary?.items || [])) {
+    lines.push([esc(it.name), Number(it.amount_dkk), esc(it.created_at || "")].join(","));
+  }
+  lines.push([esc("TOTAL"), Number(summary?.total_dkk || 0), ""].join(","));
+  return "\uFEFF" + lines.join("\r\n") + "\r\n";
+}

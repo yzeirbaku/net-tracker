@@ -2161,6 +2161,48 @@ input[type="checkbox"].tk-checkbox:checked::after {
 .home-comp-legend-item { display: inline-flex; align-items: center; gap: 6px; }
 .home-comp-pct { color: var(--muted); font-variant-numeric: tabular-nums; }
 
+/* ── Profile page ────────────────────────────────────────────────────── */
+
+.profile-email {
+  font-size: 1.05rem;
+  color: var(--fg);
+}
+.profile-export {
+  display: flex;
+  justify-content: center;
+  padding: 4px 0 2px;
+}
+.home-export-btn {
+  background: transparent;
+  border: 1px solid var(--border);
+  color: var(--muted);
+  border-radius: 8px;
+  padding: 8px 14px;
+  font-size: 0.82rem;
+  font-family: inherit;
+  cursor: pointer;
+  transition: color 120ms ease, border-color 120ms ease;
+}
+@media (hover: hover) {
+  .home-export-btn:hover { color: var(--accent, #22c55e); border-color: var(--accent, #22c55e); }
+}
+.home-export-btn:focus-visible { outline: 2px solid var(--accent, #22c55e); outline-offset: 2px; }
+.home-export-btn:disabled { opacity: 0.6; cursor: progress; }
+
+.settings-subrow {
+  margin-top: 0.9rem;
+}
+.settings-subrow:first-of-type {
+  margin-top: 0.25rem;
+}
+.settings-subrow-label {
+  color: var(--muted, #9ca3af);
+  font-size: 0.68rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  margin-bottom: 0.4rem;
+}
+
 /* ── Put aside ───────────────────────────────────────────────────────── */
 
 .put-aside-card { padding: 1rem 1rem 0.8rem; }

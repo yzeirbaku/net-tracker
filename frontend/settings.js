@@ -15,6 +15,10 @@ import {
   isAdvanceActive,
   setAdvanceMonthEnabled,
 } from "./shared/effective-month.js";
+import { buildMonthCsv, buildTemplateCsv } from "./budget-common.js";
+import { buildPutAsideCsv } from "./put-aside.js";
+import { buildNetWorthCsv } from "./networth.js";
+import { downloadBlob, makeZip } from "./shared/zip.js";
 
 const ASSET_CLASSES = ["Cash", "Stocks", "Crypto", "Precious Metals", "Pension", "Other"];
 const ACCOUNT_KINDS = [
@@ -96,7 +100,7 @@ export async function renderSettings() {
   // until the fresh fetch lands, so the page doesn't blink each time
   // the user adds or removes a row.
   const isInitial = !root.firstElementChild;
-  if (isInitial) paintViewLoading(root, "Loading settings…");
+  if (isInitial) paintViewLoading(root, "Loading profile…");
   let me, cats, accts;
   try {
     [me, cats, accts] = await Promise.all([
@@ -105,7 +109,7 @@ export async function renderSettings() {
       api.get("/accounts"),
     ]);
   } catch {
-    if (isInitial) paintViewError(root, "Couldn't load settings. Try refreshing.");
+    if (isInitial) paintViewError(root, "Couldn't load profile. Try refreshing.");
     return;
   }
   state.email = me.email;
@@ -132,33 +136,7 @@ if (typeof window !== "undefined" && !window.__segResizeBound) {
 function renderHtml() {
   return `
     <div class="card">
-      <h2>Account</h2>
-      <div class="spread" style="margin-top: 0.25rem">
-        <div>${escapeHtml(state.email)}</div>
-      </div>
-    </div>
-
-    <div class="card">
-      <h2>Theme</h2>
-      <div class="seg-group seg-pill" role="radiogroup" aria-label="Theme">
-        <div class="seg-indicator"></div>
-        <button type="button" data-theme-value="light" role="radio">Light</button>
-        <button type="button" data-theme-value="dark" role="radio">Dark</button>
-      </div>
-    </div>
-
-    <div class="card">
-      <h2>Current month</h2>
-      <div class="seg-group seg-pill" role="radiogroup" aria-label="Current month">
-        <div class="seg-indicator"></div>
-        <button type="button" data-advance-value="off" role="radio"${
-          isAdvanceActive() ? "" : ' class="active"'
-        }>Off</button>
-        <button type="button" data-advance-value="on" role="radio"${
-          isAdvanceActive() ? ' class="active"' : ""
-        }>On</button>
-      </div>
-      <p class="muted-tiny" id="advance-month-detail" style="margin-top:0.6rem">${advanceDetailText()}</p>
+      <div class="profile-email">${escapeHtml(state.email)}</div>
     </div>
 
     <section class="settings-section" data-section="categories" data-open="false">
@@ -255,6 +233,37 @@ function renderHtml() {
        </div>
       </div>
     </section>
+
+    <div class="profile-export">
+      <button type="button" class="home-export-btn" id="profile-download-bundle">
+        Download current state · zip
+      </button>
+    </div>
+
+    <div class="card">
+      <h2>Settings</h2>
+      <div class="settings-subrow">
+        <div class="settings-subrow-label">Theme</div>
+        <div class="seg-group seg-pill" role="radiogroup" aria-label="Theme">
+          <div class="seg-indicator"></div>
+          <button type="button" data-theme-value="light" role="radio">Light</button>
+          <button type="button" data-theme-value="dark" role="radio">Dark</button>
+        </div>
+      </div>
+      <div class="settings-subrow">
+        <div class="settings-subrow-label">Current month</div>
+        <div class="seg-group seg-pill" role="radiogroup" aria-label="Current month">
+          <div class="seg-indicator"></div>
+          <button type="button" data-advance-value="off" role="radio"${
+            isAdvanceActive() ? "" : ' class="active"'
+          }>Off</button>
+          <button type="button" data-advance-value="on" role="radio"${
+            isAdvanceActive() ? ' class="active"' : ""
+          }>On</button>
+        </div>
+        <p class="muted-tiny" id="advance-month-detail" style="margin-top:0.6rem">${advanceDetailText()}</p>
+      </div>
+    </div>
   `;
 }
 
@@ -521,6 +530,64 @@ function bindHandlers() {
       }
     });
   });
+
+  const downloadBtn = document.getElementById("profile-download-bundle");
+  if (downloadBtn) {
+    downloadBtn.addEventListener("click", async () => {
+      try {
+        await withBusyButton(downloadBtn, "Building…", () => downloadStateBundle());
+        toast("Bundle downloaded");
+      } catch (err) {
+        toast(friendlyError(err, "Couldn't build export"), "error");
+      }
+    });
+  }
+}
+
+function pad2(n) { return String(n).padStart(2, "0"); }
+
+function todayIsoLocal() {
+  const d = new Date();
+  return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`;
+}
+
+/**
+ * Build and download a single ZIP containing CSV snapshots of every live
+ * subsystem: budget template (draft), every stamped month, put-aside list,
+ * net-worth accounts. Fetches in parallel; each month is a separate GET so
+ * we get the full item-level detail (the /budget/months list endpoint only
+ * returns summary totals).
+ */
+async function downloadStateBundle() {
+  const [templateRes, monthsRes, putAsideRes, networthRes, categoriesRes] = await Promise.all([
+    api.get("/budget/template"),
+    api.get("/budget/months"),
+    api.get("/put-aside"),
+    api.get("/networth"),
+    api.get("/categories"),
+  ]);
+
+  const months = monthsRes || [];
+  const monthDetails = await Promise.all(
+    months.map((m) => api.get(`/budget/months/${m.year}/${m.month}`)),
+  );
+
+  const files = [];
+  files.push({
+    name: "budget-template.csv",
+    data: buildTemplateCsv(templateRes, categoriesRes),
+  });
+  for (const m of monthDetails) {
+    files.push({
+      name: `budget-${m.year}-${pad2(m.month)}.csv`,
+      data: buildMonthCsv(m),
+    });
+  }
+  files.push({ name: "put-aside.csv", data: buildPutAsideCsv(putAsideRes) });
+  files.push({ name: "net-worth.csv", data: buildNetWorthCsv(networthRes) });
+
+  const zipBytes = makeZip(files);
+  downloadBlob(zipBytes, `net-tracker-export-${todayIsoLocal()}.zip`, "application/zip");
 }
 
 // ── Edit category dialog ───────────────────────────────────────────────

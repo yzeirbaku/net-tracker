@@ -1428,12 +1428,9 @@ dialog menu button[value="save"].dialog-danger-confirm {
 
 .budget-month-picker-mount { flex: 1; }
 
-.budget-export-btn { margin-left: auto; }
-
 /* Right-aligned icon-button row above the salary block in the template
- * editor. Same icon-button family as the month export; the toolbar just
- * holds them on their own line because the template header doesn't have a
- * month-picker row to host them. */
+ * editor — currently holds the CSV upload button. On its own line because
+ * the template header doesn't have a month-picker row to host it. */
 .budget-template-toolbar {
   display: flex;
   justify-content: flex-end;

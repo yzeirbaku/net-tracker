@@ -234,12 +234,6 @@ function renderHtml() {
       </div>
     </section>
 
-    <div class="profile-export">
-      <button type="button" class="home-export-btn" id="profile-download-bundle">
-        Download current state · zip
-      </button>
-    </div>
-
     <div class="card">
       <h2>Settings</h2>
       <div class="settings-subrow">
@@ -263,6 +257,12 @@ function renderHtml() {
         </div>
         <p class="muted-tiny" id="advance-month-detail" style="margin-top:0.6rem">${advanceDetailText()}</p>
       </div>
+    </div>
+
+    <div class="profile-export">
+      <button type="button" class="home-export-btn" id="profile-download-bundle">
+        Download Current Net
+      </button>
     </div>
   `;
 }

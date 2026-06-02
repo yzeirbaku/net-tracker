@@ -40,7 +40,6 @@ import {
   catPlannedTotal,
   catSpentTotal,
   collapseKey,
-  downloadMonthCsv,
   ensureDialog,
   fmtDKK,
   fmtDKKBare,
@@ -140,7 +139,6 @@ async function renderMonthView(root) {
         <button type="button" class="budget-nav" data-budget-action="prev-month" aria-label="Previous month"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m15 18-6-6 6-6"/></svg></button>
         <div id="budget-month-picker-mount" class="budget-month-picker-mount"></div>
         <button type="button" class="budget-nav" data-budget-action="next-month" aria-label="Next month"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m9 18 6-6-6-6"/></svg></button>
-        ${monthExists ? `<button type="button" class="budget-icon-btn budget-export-btn" data-budget-action="export-csv" aria-label="Download CSV"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg></button>` : ""}
       </div>
       ${
         monthExists
@@ -355,7 +353,6 @@ function bindMonthHandlers(month, _monthExists, _allMonths) {
     const action = btn.dataset.budgetAction;
     if (action === "prev-month")    return shiftMonth(-1);
     if (action === "next-month")    return shiftMonth(1);
-    if (action === "export-csv")    return downloadMonthCsv(month);
     if (action === "open-template") return goToSubView("template");
     if (action === "open-archive")  return goToSubView("archive");
     if (action === "stamp")         return doStampMonth(btn);

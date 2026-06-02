@@ -28,7 +28,6 @@ import { paintViewError } from "./shared/view-loading.js";
 import {
   applyDraftSort,
   bindSimpleDialog,
-  downloadTemplateCsv,
   ensureDialog,
   fmtDKK,
   fmtDateOnly,
@@ -104,7 +103,6 @@ function renderTemplateEditorHtml(root) {
       })}
       <div class="budget-template-toolbar">
         <button type="button" class="budget-icon-btn" data-budget-action="tpl-import-csv" aria-label="Upload template CSV" title="Upload template CSV"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg></button>
-        <button type="button" class="budget-icon-btn" data-budget-action="tpl-export-csv" aria-label="Download template CSV" title="Download template CSV"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg></button>
         <input type="file" id="tpl-csv-file-input" accept=".csv,text/csv" hidden />
       </div>
       <div class="budget-salary">
@@ -334,8 +332,6 @@ function bindTemplateEditorHandlers(root) {
           if (root) renderTemplateEditorHtml(root);
         },
       });
-    } else if (action === "tpl-export-csv") {
-      downloadTemplateCsv(state.templateDraft, state.categories);
     } else if (action === "tpl-import-csv") {
       const input = document.getElementById("tpl-csv-file-input");
       if (input) input.click();

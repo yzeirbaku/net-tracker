@@ -292,20 +292,6 @@ export function buildMonthCsv(month) {
   return "\uFEFF" + lines.join("\r\n") + "\r\n";
 }
 
-export function downloadMonthCsv(month) {
-  const csv = buildMonthCsv(month);
-  const blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
-  const url = URL.createObjectURL(blob);
-  const ym = `${month.year}-${String(month.month).padStart(2, "0")}`;
-  const a = document.createElement("a");
-  a.href = url;
-  a.download = `budget-${ym}.csv`;
-  document.body.appendChild(a);
-  a.click();
-  a.remove();
-  setTimeout(() => URL.revokeObjectURL(url), 0);
-}
-
 /**
  * Build a UTF-8-with-BOM CSV string from a template-shaped object. Three
  * columns: Category, Item, Planned (dkk). A single meta row "Salary,,N"
@@ -332,19 +318,6 @@ export function buildTemplateCsv(template, categories) {
     }
   }
   return "\uFEFF" + lines.join("\r\n") + "\r\n";
-}
-
-export function downloadTemplateCsv(template, categories) {
-  const csv = buildTemplateCsv(template, categories);
-  const blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement("a");
-  a.href = url;
-  a.download = "budget-template.csv";
-  document.body.appendChild(a);
-  a.click();
-  a.remove();
-  setTimeout(() => URL.revokeObjectURL(url), 0);
 }
 
 /**

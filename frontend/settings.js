@@ -553,10 +553,12 @@ function todayIsoLocal() {
 
 /**
  * Build and download a single ZIP containing CSV snapshots of every live
- * subsystem: budget template (draft), every stamped month, put-aside list,
- * net-worth accounts. Fetches in parallel; each month is a separate GET so
- * we get the full item-level detail (the /budget/months list endpoint only
- * returns summary totals).
+ * subsystem: budget template (draft), every active (non-archived) stamped
+ * month, put-aside list, net-worth accounts. Archived months are skipped
+ * — once a month is archived it's frozen history, not part of "current
+ * net." Fetches in parallel; each month is a separate GET so we get the
+ * full item-level detail (the /budget/months list endpoint only returns
+ * summary totals).
  */
 async function downloadStateBundle() {
   const [templateRes, monthsRes, putAsideRes, networthRes, categoriesRes] = await Promise.all([
@@ -567,7 +569,7 @@ async function downloadStateBundle() {
     api.get("/categories"),
   ]);
 
-  const months = monthsRes || [];
+  const months = (monthsRes || []).filter((m) => !m.archived_at);
   const monthDetails = await Promise.all(
     months.map((m) => api.get(`/budget/months/${m.year}/${m.month}`)),
   );

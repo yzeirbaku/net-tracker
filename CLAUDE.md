@@ -1,20 +1,21 @@
 # net-tracker — Claude guide
 
-Personal-finance PWA. Single-user, magic-link auth. Two live subsystems (Budget / Net Worth) + a Home dashboard, all sharing a single category taxonomy. Stack modeled on `gold-price-tracker` (sibling repo) — FastAPI behind Caddy on an Oracle Cloud Always-Free VM, vanilla-JS PWA on Cloudflare Pages, Neon Postgres, Resend for magic-link email.
+Personal-finance PWA. Single-user, magic-link auth. Three live subsystems (Budget / Net Worth / Put Aside) + a Home dashboard, all sharing a single category taxonomy. Stack modeled on `gold-price-tracker` (sibling repo) — FastAPI behind Caddy on an Oracle Cloud Always-Free VM, vanilla-JS PWA on Cloudflare Pages, Neon Postgres, Resend for magic-link email.
 
-Shipped: auth, accounts/categories CRUD, Net Worth, Budget, Home dashboard. Spending/CSV (the planned fifth view) was scrapped; the `spending` + `put_aside` account kinds remain in the schema but aren't user-facing today.
+Shipped: auth, accounts/categories CRUD, Net Worth, Budget, Put Aside, Home dashboard. Spending/CSV (the originally planned fifth view) was scrapped; the `spending` + `put_aside` *account kinds* remain in the schema but aren't user-facing today — the Put Aside view uses its own `put_aside_items` table, not the `accounts` table.
 
 ## Git
 
 All commits in this repo must be authored as `yzeirbaku@hotmail.com` (name: `Yzeir Baku`). Already set in the local config — verify with `git config user.email` before committing if anything looks off. Co-author trailers from Claude Code are fine; the *author* must remain the hotmail address.
 
-## Four views
+## Views
 
 Side-drawer nav, same shell pattern as gold-price-tracker:
 
-- **Home** — daily landing screen. Read-only tiles (net worth hero, composition strip, current-month budget tile, next-up unticked items) composed from `/networth` and `/budget/months/{ym}` in parallel. Taps deep-link to the source view. No Home-specific backend code.
+- **Home** — daily landing screen. Read-only tiles (net worth hero, composition strip, current-month budget tile, put-aside tile, next-up unticked items) composed from `/networth`, `/budget/months/{ym}`, and `/put-aside` in parallel. Taps deep-link to the source view. No Home-specific backend code.
 - **Budget** — persistent template (draft + labelled snapshots) stamped into per-month plans with checkable items. Past months can't be stamped; archive locks a month read-only. Month + template both support CSV download; template editor also supports CSV upload (rejects unknown category names; Save commits).
 - **Net Worth** — manually-entered balances per wealth account, total-over-time chart, composition donut, period deltas, global Total/Liquid/No-pension toggle. Toggle persists in `localStorage["net-tracker.networth.view-mode"]` and Home reflects it.
+- **Put Aside** — flat list of named amounts earmarked for upcoming spend. Reachable only via the Home tile (no drawer entry, on purpose, to keep top-level nav lean). See dedicated section below.
 - **Settings** — sign in/out, theme toggle, accounts CRUD, categories CRUD.
 
 ## Account kinds
@@ -22,7 +23,7 @@ Side-drawer nav, same shell pattern as gold-price-tracker:
 Three flavors on the `accounts` table (`kind` column):
 
 - **`wealth`** — accumulating assets (bank savings, brokerage, crypto, precious metals, pension). **Counts** toward net worth.
-- **`spending`** / **`put_aside`** — schema-present but not user-facing today (the Spending/CSV view was scrapped). Excluded from net-worth math.
+- **`spending`** / **`put_aside`** — schema-present but unused. The Spending/CSV view was scrapped, and the Put Aside view that shipped uses its own `put_aside_items` table — neither feature creates rows on `accounts` with these kinds. Excluded from net-worth math.
 
 `asset_class` is set ONLY on `wealth` accounts (NULL otherwise), enforced by a DB CHECK + Pydantic validator. Values: `Cash`, `Stocks`, `Crypto`, `Precious Metals`, `Pension`, `Other`.
 
@@ -51,6 +52,21 @@ Three flavors on the `accounts` table (`kind` column):
 - **Extra income (per-month, optional).** `budget_months` carries a single nullable `extra_income_name` / `extra_income_dkk` pair — a one-off line for bonuses, refunds, gifts, etc. UI surfaces a `+ Add income` link under Salary when unset; once set, the row sits beside Salary with edit + delete affordances. `PUT /budget/months/{y}/{m}/extra-income` sets/overwrites, `DELETE` clears. Counted with Salary in the Free-money math and emitted as an `Income,<name>,<amount>,…` row in the month CSV. Single item only — a future change can table-ify if you need multiple.
 - **Amount input formatting.** Every monetary input (budget, template, salary, extra income, net-worth balance entries) is wired through `installAmountFormatter()` (in `budget-common.js`): live dot-thousands as the user types, caret preserved. `parseAmount()` strips dots on submit; `formatAmountForInput()` renders initial values.
 - **Collapsible categories.** Both month and template category heads toggle on click (▾↔▸), persisted under separate `localStorage` namespaces so month and template collapsed-state don't collide.
+
+## Put Aside
+
+- **Purpose.** Money "parked" for an upcoming spend (e.g. car insurance due in 3 months, summer vacation in 6). The list IS the current state — no dates, no categories, no history, no per-item due reminders. Add when you decide to set money aside; delete when you actually spend it.
+- **Data model.** `put_aside_items(id, user_id, name, amount_dkk, created_at, updated_at)`. One global list per user — no account abstraction, no buckets. CHECK constraint enforces `amount_dkk >= 0`.
+- **Independent from the `put_aside` *account kind*.** The `accounts.kind` value `'put_aside'` still exists in the schema but is unused; the Put Aside view does not touch the `accounts` table.
+- **Excluded from net worth math.** Same rule as before — only `kind = 'wealth'` accounts feed `/networth`. Put-aside money is budgeting state, not wealth.
+- **Sort order.** `amount_dkk DESC, created_at ASC` everywhere. The tiebreaker on `created_at` is load-bearing: the Home tile slices the top 3 by amount, and without it equal-amount rows would flicker between renders.
+- **API** (`/put-aside`):
+  - `GET /put-aside` → `{total_dkk, items: [...]}`
+  - `POST /put-aside/items` body `{name, amount_dkk}`
+  - `PUT /put-aside/items/{id}` body `{name?, amount_dkk?}` — empty body is a no-op (keeps both fields)
+  - `DELETE /put-aside/items/{id}`
+- **No drawer entry — Home tile is the only entrypoint.** A `<button data-action="put-aside" hidden>` lives in `index.html` so `bindHomeClickThroughs()` can keep dispatching synthetic menu-item clicks the same way it does for every other tile (navigation routing stays centralized in `app.js`). Hamburger always works to navigate back to Home.
+- **Home tile** sits between the Budget tile and Next-up: header `Put aside`, total, then up to 3 item rows (name + amount). Empty state shows `0 dkk · Nothing set aside yet` — tile always visible so the user can tap through to add the first item.
 
 ## Auth
 

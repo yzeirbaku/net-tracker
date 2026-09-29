@@ -363,11 +363,19 @@ export function parseCsv(text) {
 }
 
 /** Format a numeric value as a Danish-style amount string for an input
- *  field's initial value: dots every three digits, no currency suffix. */
+ *  field's initial value: dots every three digits, no currency suffix.
+ *  Øre are kept ("99,50") — rounding to whole kroner here meant any save
+ *  from an edit dialog silently rewrote 99.50 as 100, and a remaining of
+ *  0.40 as 0 (which auto-ticks the item). Whole amounts stay "1.500". */
 export function formatAmountForInput(n) {
   const num = Number(n);
   if (!Number.isFinite(num)) return "";
-  return Math.round(num).toLocaleString("de-DE");
+  const cents = Math.round(num * 100);
+  const digits = cents % 100 === 0 ? 0 : 2;
+  return (cents / 100).toLocaleString("de-DE", {
+    minimumFractionDigits: digits,
+    maximumFractionDigits: digits,
+  });
 }
 
 /** Live-format an amount input as the user types: dots every three digits

@@ -135,7 +135,11 @@ async def require_session(
         )
         if row is None:
             raise HTTPException(status_code=401, detail="no_session")
-        if row["created_at"] + SESSION_MAX_AGE < now:
+        # Sliding TTL: measured from the last request, not from sign-in, so
+        # someone who uses the app is never logged out mid-use on day 90.
+        # `last_seen_at` is debounced to 1h, so the window can be up to an
+        # hour shorter than SESSION_MAX_AGE — immaterial at 90 days.
+        if row["last_seen_at"] + SESSION_MAX_AGE < now:
             raise HTTPException(status_code=401, detail="session_expired")
         if now - row["last_seen_at"] > SESSION_LAST_SEEN_DEBOUNCE:
             await conn.execute(

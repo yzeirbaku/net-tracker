@@ -134,3 +134,38 @@ async def test_logout_deletes_session(
 
     r = await client.get("/auth/me", headers=headers)
     assert r.status_code == 401
+
+
+async def test_session_ttl_slides_with_use(
+    client: AsyncClient, authed_user: dict[str, str]
+) -> None:
+    """Signed in 100 days ago but active yesterday: still valid."""
+    from datetime import UTC, datetime, timedelta
+
+    now = datetime.now(UTC)
+    async with db.pool().acquire() as conn:
+        await conn.execute(
+            "UPDATE sessions SET created_at = $1, last_seen_at = $2 WHERE id = $3::uuid",
+            now - timedelta(days=100), now - timedelta(days=1), authed_user["token"],
+        )
+    r = await client.get(
+        "/auth/me", headers={"Authorization": f"Bearer {authed_user['token']}"}
+    )
+    assert r.status_code == 200
+
+
+async def test_session_expires_after_90_idle_days(
+    client: AsyncClient, authed_user: dict[str, str]
+) -> None:
+    from datetime import UTC, datetime, timedelta
+
+    async with db.pool().acquire() as conn:
+        await conn.execute(
+            "UPDATE sessions SET last_seen_at = $1 WHERE id = $2::uuid",
+            datetime.now(UTC) - timedelta(days=91), authed_user["token"],
+        )
+    r = await client.get(
+        "/auth/me", headers={"Authorization": f"Bearer {authed_user['token']}"}
+    )
+    assert r.status_code == 401
+    assert r.json()["detail"] == "session_expired"

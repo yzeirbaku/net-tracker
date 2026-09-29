@@ -97,28 +97,38 @@ export function resetBudgetSubView() {
 
 // ── Month view ──────────────────────────────────────────────────────────
 
+// Bumped per month render. Tapping prev/next faster than the network means
+// several renders are in flight at once; only the newest may paint, or a
+// slower response for an earlier month lands last and shows its items under
+// the current month's picker (and its buttons then act on the wrong month).
+let monthRenderSeq = 0;
+
 async function renderMonthView(root) {
+  const seq = ++monthRenderSeq;
+  const isStale = () => seq !== monthRenderSeq;
+  const { year, month: monthNum } = state.currentMonth;
   let month;
   let monthExists = true;
   let months = [];
-  try {
-    months = await api.get("/budget/months");
-  } catch (err) {
-    paintViewError(root, friendlyError(err, "Couldn't load Budget"));
+  // Independent requests — fetch them together rather than back to back.
+  const [monthsRes, monthRes] = await Promise.allSettled([
+    api.get("/budget/months"),
+    api.get(`/budget/months/${year}/${monthNum}`),
+  ]);
+  if (isStale()) return;
+  if (monthsRes.status === "rejected") {
+    paintViewError(root, friendlyError(monthsRes.reason, "Couldn't load Budget"));
     return;
   }
+  months = monthsRes.value;
   state.monthsCache = months;
-  try {
-    month = await api.get(
-      `/budget/months/${state.currentMonth.year}/${state.currentMonth.month}`,
-    );
-  } catch (err) {
-    if (err?.message === "month_not_stamped") {
-      monthExists = false;
-    } else {
-      paintViewError(root, friendlyError(err, "Couldn't load Budget"));
-      return;
-    }
+  if (monthRes.status === "fulfilled") {
+    month = monthRes.value;
+  } else if (monthRes.reason?.message === "month_not_stamped") {
+    monthExists = false;
+  } else {
+    paintViewError(root, friendlyError(monthRes.reason, "Couldn't load Budget"));
+    return;
   }
 
   // Header chrome — Unarchive is intentionally NOT here; restoring an
@@ -426,7 +436,7 @@ async function deleteItemFromRow(btn, itemId) {
   });
   if (!ok) return;
   try {
-    await withBusyButton(btn, "…", () =>
+    await withBusyButton(btn, "Deleting…", () =>
       api.delete(
         `/budget/months/${state.currentMonth.year}/${state.currentMonth.month}/items/${itemId}`,
       ),
@@ -440,7 +450,7 @@ async function deleteItemFromRow(btn, itemId) {
 
 async function tickItem(btn, itemId, toTicked) {
   try {
-    await withBusyButton(btn, "…", () =>
+    await withBusyButton(btn, toTicked ? "Ticking…" : "Unticking…", () =>
       api.patch(
         `/budget/months/${state.currentMonth.year}/${state.currentMonth.month}/items/${itemId}`,
         { ticked: toTicked },

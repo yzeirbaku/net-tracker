@@ -6,6 +6,7 @@
  */
 
 import { api } from "./shared/api.js";
+import { isSignedIn } from "./shared/auth.js";
 import { escapeHtml, friendlyError } from "./shared/ui.js";
 import { paintViewLoading, paintViewError } from "./shared/view-loading.js";
 import { ASSET_CLASS_COLORS, ASSET_CLASS_ORDER, getNetWorthViewMode } from "./networth.js";
@@ -296,13 +297,17 @@ function renderHeroBody(nw, mode) {
 export async function renderHome() {
   const root = document.getElementById("home-root");
   if (!root) return;
+  // Signed out, Home shows the signed-out card instead — fetching here would
+  // only paint "You're not signed in." into the hidden root, which a later
+  // sign-in then reveals as-is.
+  if (!isSignedIn()) return;
   if (!booted) paintViewLoading(root);
 
   const { year, month } = currentYearMonth();
   const since = isoMinusDays(30);
 
   const [nwRes, budgetRes, putAsideRes] = await Promise.allSettled([
-    api.get(`/networth?range_from=${since}`),
+    api.get(`/networth?from=${since}`),
     api.get(`/budget/months/${year}/${month}`),
     fetchPutAsideSummary(),
   ]);
@@ -342,7 +347,12 @@ export async function renderHome() {
   bindHomeClickThroughs(root);
 }
 
+// Bound once per root: `renderHome` re-runs on every visit but only swaps
+// `innerHTML`, so re-adding listeners here stacked one per visit and a single
+// tile tap then fired N navigations.
 function bindHomeClickThroughs(root) {
+  if (root.__homeBound) return;
+  root.__homeBound = true;
   const handler = (target) => {
     const dest = target.closest("[data-home-nav]")?.dataset.homeNav;
     if (!dest) return;

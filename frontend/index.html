@@ -8,14 +8,15 @@
        PWA page renders UNDER the iOS status bar, so the sticky header sits
        behind the notch. Letting iOS use its default keeps the status bar
        opaque and pushes the content below it. -->
-  <meta name="theme-color" content="#0f1419" />
+  <meta name="theme-color" content="#0d1117" />
   <link rel="manifest" href="/manifest.webmanifest?v=2" />
   <link rel="apple-touch-icon" href="/icons/icon-192.png?v=2" />
-  <link rel="stylesheet" href="/styles.css?v=73" />
+  <link rel="stylesheet" href="/styles.css?v=74" />
   <title>Net Tracker</title>
   <script src="/config.js"></script>
 </head>
 <body data-theme="dark">
+  <script src="/theme-boot.js"></script>
   <header>
     <div class="menu-wrapper">
       <button id="menu-btn" class="icon-btn" aria-label="Menu" aria-haspopup="true" aria-expanded="false" type="button"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="4" y1="5" x2="20" y2="5"/><line x1="4" y1="12" x2="20" y2="12"/><line x1="4" y1="19" x2="20" y2="19"/></svg></button>

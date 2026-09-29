@@ -7,6 +7,8 @@
      "paper on a desk" instead of "white-on-white". */
   --bg: #f3f1ea;
   --surface: #fdfcf8;
+  /* Translucent surface for the mobile sticky header's frosted-glass look. */
+  --header-bg: rgba(253, 252, 248, 0.82);
   --surface-2: #eae6dc;
   --fg: #14171a;
   --fg-soft: #2a2f36;
@@ -35,6 +37,7 @@
 [data-theme="dark"] {
   --bg: #0d1117;
   --surface: #161c24;
+  --header-bg: rgba(22, 28, 36, 0.82);
   --surface-2: #1c242e;
   --fg: #e6edf3;
   --fg-soft: #c5cdd6;
@@ -69,6 +72,15 @@ html, body { overscroll-behavior: none; }
  * blocked by the viewport meta's maximum-scale/user-scalable in index.html.
  * Together they stop page zoom on mobile. */
 html { touch-action: manipulation; }
+/* No visible scrollbars anywhere — an installed PWA should read as an app,
+ * not a document. Scrolling itself is untouched (wheel, touch, keyboard and
+ * programmatic scrolling all still work); only the bar is hidden. Affordance
+ * comes from content peeking past the fold instead. Mirrors formicarium. */
+* {
+  scrollbar-width: none;      /* Firefox */
+  -ms-overflow-style: none;   /* legacy Edge */
+}
+*::-webkit-scrollbar { width: 0; height: 0; display: none; }
 body {
   font-family: var(--font);
   background: var(--bg);
@@ -142,6 +154,17 @@ header h1 {
    a few px between platforms because its baseline-within-line-box varies).
    Pattern mirrors gold-price-tracker. */
 #menu-btn svg { width: 22px; height: 22px; display: block; }
+
+/* Frosted sticky header on phones — content scrolls visibly under it, the
+   way a native nav bar reads. Solid `--surface` stays the fallback where
+   backdrop-filter is unsupported (the token is only slightly translucent). */
+@media (max-width: 599px) {
+  header {
+    background: var(--header-bg);
+    -webkit-backdrop-filter: saturate(1.5) blur(14px);
+    backdrop-filter: saturate(1.5) blur(14px);
+  }
+}
 
 @media (max-width: 480px) {
   header { padding: 0.8rem 1rem; gap: 0.15rem; }

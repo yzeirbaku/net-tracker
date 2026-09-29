@@ -47,6 +47,7 @@ const state = {
 function setTheme(theme) {
   document.body.dataset.theme = theme;
   localStorage.setItem("net-tracker.theme", theme);
+  window.applyThemeColor?.(theme);
   document.querySelectorAll("[data-theme-value]").forEach((btn) => {
     btn.classList.toggle("active", btn.dataset.themeValue === theme);
   });

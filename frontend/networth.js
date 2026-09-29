@@ -596,11 +596,10 @@ function renderHistoryList() {
         title: "Delete entry?",
         message: "This balance entry will be permanently removed.",
         okLabel: "Delete",
-        danger: true,
       });
       if (!ok) return;
       try {
-        await withBusyButton(btn, "…", () =>
+        await withBusyButton(btn, "Deleting…", () =>
           api.delete(`/accounts/${historyState.accountId}/balance/${btn.dataset.entryId}`),
         );
         toast("Entry deleted");

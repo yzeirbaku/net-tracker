@@ -1,5 +1,6 @@
 import { clearToken, getToken } from "./auth.js";
-import { toast } from "./ui.js";
+
+const REQUEST_TIMEOUT_MS = 20000;
 
 function url(path) {
   const base = window.BACKEND_URL || "";
@@ -19,12 +20,23 @@ async function request(method, path, body) {
     bodyBlob = body;
   }
 
+  // Every request gets a deadline. Without one a flaky mobile connection can
+  // leave fetch pending indefinitely, and the button that started it stuck
+  // on "Saving…" with it.
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
   let res;
   try {
-    res = await fetch(url(path), { method, headers, body: bodyBlob });
+    res = await fetch(url(path), { method, headers, body: bodyBlob, signal: controller.signal });
   } catch (e) {
-    toast("Network error — is the backend running?", "error");
-    throw e;
+    // No toast here: every caller already reports failures through
+    // friendlyError(), so toasting too flashed two messages in a row. The
+    // codes below are mapped to user-facing copy in ui.js.
+    const err = new Error(controller.signal.aborted ? "timeout" : "network_error");
+    err.cause = e;
+    throw err;
+  } finally {
+    clearTimeout(timer);
   }
 
   if (res.status === 401) {

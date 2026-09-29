@@ -478,7 +478,7 @@ function bindHandlers() {
       const id = btn.dataset.deleteCategory;
       const ok = await confirmPrompt({
         title: "Delete category?",
-        message: "This removes the category from your budget template and from any stamped month that uses it (including their items). Transactions categorized with it become uncategorized. Cannot be undone.",
+        message: "This removes the category from your budget template and from any stamped month that uses it (including their items). Cannot be undone.",
         okLabel: "Delete",
       });
       if (!ok) return;
@@ -518,7 +518,7 @@ function bindHandlers() {
       const id = btn.dataset.deleteAccount;
       const ok = await confirmPrompt({
         title: "Delete account?",
-        message: "This removes the account and all linked data (balances, transactions, envelopes). Cannot be undone.",
+        message: "This removes the account and its balance history. Cannot be undone.",
         okLabel: "Delete",
       });
       if (!ok) return;

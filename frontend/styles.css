@@ -2318,3 +2318,15 @@ input[type="checkbox"].tk-checkbox:checked::after {
   white-space: nowrap;
   padding-right: 0.5rem;
 }
+
+/* In-flight icon button (see withBusyButton in shared/ui.js): the icon stays,
+   dims and pulses so the tap visibly registered. */
+button.is-busy {
+  opacity: 0.55;
+  cursor: progress;
+  animation: icon-busy-pulse 900ms ease-in-out infinite alternate;
+}
+@keyframes icon-busy-pulse { to { opacity: 0.25; } }
+@media (prefers-reduced-motion: reduce) {
+  button.is-busy { animation: none; }
+}

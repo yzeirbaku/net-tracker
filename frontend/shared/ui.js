@@ -89,6 +89,26 @@ export function closeDialog(id) {
  */
 export async function withBusyButton(btn, busyLabel, fn) {
   if (!btn) return await fn();
+  // Icon-only buttons (a lone <svg>, no text) can't take a text label — it
+  // would overflow the 28px square and, because only `textContent` was
+  // restored, a failed call left the button permanently blank. They keep
+  // their icon and show the busy state through `.is-busy` + aria instead.
+  if (btn.querySelector("svg") && !btn.textContent.trim()) {
+    const originalAria = btn.getAttribute("aria-label");
+    btn.disabled = true;
+    btn.classList.add("is-busy");
+    btn.setAttribute("aria-busy", "true");
+    btn.setAttribute("aria-label", busyLabel);
+    try {
+      return await fn();
+    } finally {
+      btn.disabled = false;
+      btn.classList.remove("is-busy");
+      btn.removeAttribute("aria-busy");
+      if (originalAria === null) btn.removeAttribute("aria-label");
+      else btn.setAttribute("aria-label", originalAria);
+    }
+  }
   const originalLabel = btn.textContent;
   btn.disabled = true;
   btn.textContent = busyLabel;
@@ -104,6 +124,9 @@ export async function withBusyButton(btn, busyLabel, fn) {
 // messages. Anything not in this map falls back to a generic message — we
 // never surface raw backend codes / SQL constraint names / variable names.
 const _ERROR_MESSAGES = {
+  // shared/api.js — transport failures
+  network_error: "Couldn't reach the server. Check your connection and try again.",
+  timeout: "The server took too long to respond. Please try again.",
   // accounts.py
   account_name_taken: "An account with this name already exists.",
   asset_class_required_for_wealth: "Pick an asset class for wealth accounts.",

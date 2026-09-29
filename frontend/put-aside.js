@@ -140,7 +140,7 @@ async function openItemDialog({ mode, item }, root) {
   showDialog(dlg);
 }
 
-async function handleDelete(itemId, itemName, root) {
+async function handleDelete(btn, itemId, itemName, root) {
   const ok = await confirmPrompt({
     title: "Delete item",
     message: `Delete "${itemName}" from your put-aside list?`,
@@ -148,7 +148,7 @@ async function handleDelete(itemId, itemName, root) {
   });
   if (!ok) return;
   try {
-    await api.delete(`/put-aside/items/${itemId}`);
+    await withBusyButton(btn, "Deleting…", () => api.delete(`/put-aside/items/${itemId}`));
     toast("Deleted");
     await refresh(root);
   } catch (err) {
@@ -175,7 +175,7 @@ function bindEvents(root) {
     if (action === "edit") {
       await openItemDialog({ mode: "edit", item }, root);
     } else if (action === "delete") {
-      await handleDelete(item.id, item.name, root);
+      await handleDelete(btn, item.id, item.name, root);
     }
   });
 }

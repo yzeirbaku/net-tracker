@@ -89,34 +89,33 @@ export function closeDialog(id) {
  */
 export async function withBusyButton(btn, busyLabel, fn) {
   if (!btn) return await fn();
-  // Icon-only buttons (a lone <svg>, no text) can't take a text label — it
-  // would overflow the 28px square and, because only `textContent` was
-  // restored, a failed call left the button permanently blank. They keep
-  // their icon and show the busy state through `.is-busy` + aria instead.
-  if (btn.querySelector("svg") && !btn.textContent.trim()) {
-    const originalAria = btn.getAttribute("aria-label");
-    btn.disabled = true;
+  // Icon-only buttons (a lone <svg>, no text) can't take a text label:
+  // setting `textContent` destroyed the <svg> on every call, which only went
+  // unnoticed when the list re-rendered afterwards. They keep their icon and
+  // show the busy state through `.is-busy` + aria instead.
+  const iconOnly = !!btn.querySelector("svg") && !btn.textContent.trim();
+  const originalLabel = btn.textContent;
+  const originalAria = btn.getAttribute("aria-label");
+  btn.disabled = true;
+  if (iconOnly) {
     btn.classList.add("is-busy");
     btn.setAttribute("aria-busy", "true");
     btn.setAttribute("aria-label", busyLabel);
-    try {
-      return await fn();
-    } finally {
-      btn.disabled = false;
-      btn.classList.remove("is-busy");
-      btn.removeAttribute("aria-busy");
-      if (originalAria === null) btn.removeAttribute("aria-label");
-      else btn.setAttribute("aria-label", originalAria);
-    }
+  } else {
+    btn.textContent = busyLabel;
   }
-  const originalLabel = btn.textContent;
-  btn.disabled = true;
-  btn.textContent = busyLabel;
   try {
     return await fn();
   } finally {
     btn.disabled = false;
-    btn.textContent = originalLabel;
+    if (iconOnly) {
+      btn.classList.remove("is-busy");
+      btn.removeAttribute("aria-busy");
+      if (originalAria === null) btn.removeAttribute("aria-label");
+      else btn.setAttribute("aria-label", originalAria);
+    } else {
+      btn.textContent = originalLabel;
+    }
   }
 }
 

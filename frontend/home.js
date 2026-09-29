@@ -69,7 +69,11 @@ function pointForView(p, nw, mode) {
 }
 
 function renderSparklineSvg(series, nw, mode) {
-  if (!series || series.length < 2) return "";
+  if (!series || !series.length) return "";
+  // The 30-day series is the value at the window start plus one point per
+  // change inside it, so a quiet month is a single point — draw it flat
+  // rather than dropping the sparkline.
+  if (series.length === 1) series = [series[0], series[0]];
   const values = series.map((p) => pointForView(p, nw, mode));
   const min = Math.min(...values);
   const max = Math.max(...values);

@@ -307,13 +307,13 @@ async function main() {
   // Reveal the Home view BEFORE the async checks so the user never stares
   // at a blank shell while /auth/me is in flight. refreshSignedInState
   // then flips the loading / signed-in / signed-out card inside Home.
-  const hadSession = isSignedIn();
   showView("home");
-  await tryVerify();
+  const verified = await tryVerify();
   await refreshSignedInState();
-  // A magic-link open on a fresh device only gets its token in tryVerify, so
-  // the first renderHome above skipped; render now that there is a session.
-  if (!hadSession && isSignedIn()) renderHome();
+  // A magic link swaps in a new session after the first renderHome ran —
+  // with no token (fresh device: it skipped) or with the old one (expired, or
+  // another account's), so what it painted is stale. Render for the new one.
+  if (verified && isSignedIn()) renderHome();
 }
 
 main();
